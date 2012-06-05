@@ -13,12 +13,15 @@ namespace handlebars.cs.tests
     /// </summary>
     [TestClass]
     public class HandleBarsTestClass
-    {         
+    {
+
+        private const string template = "<div class=\"entry\"><h1>{{title}}</h1><div class=\"body\">{{{body}}}</div></div>";
+
         [TestMethod]
         public void CompileTemplate()
         {
 
-            HandleBars.Compile("test", "<div class=\"entry\"><h1>{{title}}</h1><div class=\"body\">{{{body}}}</div></div>");
+            HandleBars.Compile("test", template);
             //
             // TODO: Add test logic here
             //
@@ -33,7 +36,7 @@ namespace handlebars.cs.tests
             // TODO: Add test logic here
             //
 
-            HandleBars.Compile("test", "<div class=\"entry\"><h1>{{title}}</h1><div class=\"body\">{{{body}}}</div></div>");
+            HandleBars.Compile("test", template);
             HandleBars.Delete("test");
 
         }
@@ -41,7 +44,7 @@ namespace handlebars.cs.tests
         [TestMethod]
         public void GetPreCompileJS()
         {
-            HandleBars.Compile("test", "<div class=\"entry\"><h1>{{title}}</h1><div class=\"body\">{{{body}}}</div></div>");
+            HandleBars.Compile("test", template);
             var test = HandleBars.GetPreCompileJS();
 
             // note: yui compress can gain 50% before gzip, 70% after.
@@ -55,8 +58,8 @@ namespace handlebars.cs.tests
             // TODO: Add test logic here
             //
 
-            HandleBars.Compile("test", "<div class=\"entry\"><h1>{{title}}</h1><div class=\"body\">{{{body}}}</div></div>");
-            // HandleBars.Run("test", new { title = "My New Post", body = "This is my first post!" });            
+            HandleBars.Compile("test", template);
+            HandleBars.Run("test", new { title = "My New Post", body = "This is my first post!" });            
 
         }
 
@@ -70,6 +73,14 @@ namespace handlebars.cs.tests
             // TODO: Add test logic here
             //
 
+            int count = 1000;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            //Parallel.For(0, count, (i) =>
+            //{
+            //    context.Run("console.Print(template({title: \"My New Post\", body: \"" + i + "\"}));");
+            //});
+            sw.Stop();
+            Console.WriteLine("{0} tps", count / sw.Elapsed.TotalSeconds);
         }
 
 

@@ -6,6 +6,9 @@ using System.Reflection;
 using System.Text;
 
 using Noesis.Javascript;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace handlebars.cs
 {
@@ -50,8 +53,15 @@ namespace handlebars.cs
                 throw new Exception("There is already a template with that name which has been compiled.");
 
             // note: this is not doing anything to check if the template is properly escaped.
-            _context.Run("templates['" + name + "'] = Handlebars.compile('" + template + "');");
-            _templates.Add(name, template);
+            _context.Run("templates['" + name + "'] = Handlebars.compile('" + FormatTemplate(template) + "');");
+            _templates.Add(name, FormatTemplate(template));
+        }
+
+        private static string FormatTemplate(string template)
+        {
+            return template.Replace("\r\n", " ")
+                           .Replace("\r", " ")
+                           .Replace("\n", " ");
         }
 
         public static void Delete(string name)
@@ -92,12 +102,23 @@ namespace handlebars.cs
 
         // Engine.Run("product-form", System.IO.ReadToEnd("_template/.handlebars"), JsonHelper.ToJson(new { title = "My New Post", body = "This is my first post!" }));
 
+
+        public static string Run(string name, dynamic context)
+        {
+            return Run(name, JsonConvert.SerializeObject(context));
+        }
+
         public static string Run(string name, string context)
         {
             if (!_templates.ContainsKey(name))
                 throw new Exception("Could not find template \"" + name + "\"");
 
-            return (string)_context.Run("templates['" + name + "'](context);");    
+            return (string)_context.Run("templates['" + name + "'](" + context + ");");    
+        }
+
+        public static string Run(string name, string template, dynamic context)
+        {
+            return Run(name, JsonConvert.SerializeObject(context));
         }
 
         public static string Run(string name, string template, string context)
@@ -105,7 +126,7 @@ namespace handlebars.cs
             if (!_templates.ContainsKey(name))
                 Compile(name, template);
 
-            return (string)_context.Run("templates['" + name + "'](context);");            
+            return (string)_context.Run("templates['" + name + "'](" + context + ");");            
         }
 
 
