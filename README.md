@@ -18,6 +18,12 @@ var html = HandleBars.Run("test", new { title = "My New Post", body = "This is m
 
 ```
 
+Azure
+-----
+If deploying to Windows Azure in a Web Role see the example project (ExampleAzureWebRole.csproj), 
+managed code requires the install of the VCRedistribute, and copying the JavaScript.NET dependency 
+to the IIS directory. For more info: (http://msdn.microsoft.com/en-us/library/windowsazure/hh694038.aspx)
+
 Copyright & License
 ---------------------
 
