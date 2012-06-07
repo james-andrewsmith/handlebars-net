@@ -19,12 +19,13 @@ namespace handlebars.cs
             _context = new JavascriptContext();            
             var _assembly = Assembly.GetExecutingAssembly();
             using (var _textStreamReader = new StreamReader(_assembly.GetManifestResourceStream("handlebars.cs.handlebars.js.handlebars-1.0.0.beta.6.js")))
-            {
                 _context.Run(_textStreamReader.ReadToEnd());
-            }
-
+            
+            // ensure there is a 'templates' property
+            _context.Run("Handlebars.templates = Handlebars.templates || {};");
+            
             // setup an object which contains the compiled templates as properties.
-            _context.Run("var templates = {};");
+            // _context.Run("var templates = {};");
             _templates = new Dictionary<string, string>();
         }
 
@@ -52,8 +53,8 @@ namespace handlebars.cs
             if (_templates.ContainsKey(name))
                 throw new Exception("There is already a template with that name which has been compiled.");
 
-            // note: this is not doing anything to check if the template is properly escaped.
-            _context.Run("templates['" + name + "'] = Handlebars.compile('" + FormatTemplate(template) + "');");
+            // note: this is not doing anything to check if the template is properly escaped.            
+            _context.Run("Handlebars.templates['" + name + "'] = Handlebars.compile('" + FormatTemplate(template) + "');");
             _templates.Add(name, FormatTemplate(template));
         }
 
@@ -61,12 +62,14 @@ namespace handlebars.cs
         {
             return template.Replace("\r\n", " ")
                            .Replace("\r", " ")
+                           .Replace("\t", " ")
+                           .Replace("  ", " ")
                            .Replace("\n", " ");
         }
 
         public static void Delete(string name)
         {
-            _context.Run("delete templates['" + name + "'];");
+            _context.Run("delete Handlebars.templates['" + name + "'];");
             _templates.Remove(name);
         }
 
@@ -80,9 +83,9 @@ namespace handlebars.cs
         public static string GetPreCompileJS()
         {
             var sb = new StringBuilder();
-            sb.Append("var templates = templates || {};\n");
+            sb.Append("var Handlebars = Handlebars || {};\n");
             foreach(var kvp in _templates)
-                sb.AppendLine("templates['" + kvp.Key + "'] = " + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');"));
+                sb.AppendLine("Handlebars.templates['" + kvp.Key + "'] = " + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');"));
             
             return sb.ToString();
         }
@@ -113,7 +116,7 @@ namespace handlebars.cs
             if (!_templates.ContainsKey(name))
                 throw new Exception("Could not find template \"" + name + "\"");
 
-            return (string)_context.Run("templates['" + name + "'](" + context + ");");    
+            return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");    
         }
 
         public static string Run(string name, string template, dynamic context)
@@ -126,7 +129,7 @@ namespace handlebars.cs
             if (!_templates.ContainsKey(name))
                 Compile(name, template);
 
-            return (string)_context.Run("templates['" + name + "'](" + context + ");");            
+            return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");            
         }
 
 
