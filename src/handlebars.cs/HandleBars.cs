@@ -84,8 +84,9 @@ namespace handlebars.cs
         {
             var sb = new StringBuilder();
             sb.Append("var Handlebars = Handlebars || {};\n");
+            sb.Append("Handlebars.template = Handlebars.template || {};\n");
             foreach(var kvp in _templates)
-                sb.AppendLine("Handlebars.templates['" + kvp.Key + "'] = " + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');"));
+                sb.AppendLine("Handlebars.template['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
             
             return sb.ToString();
         }
