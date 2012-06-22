@@ -23,6 +23,7 @@ namespace handlebars.cs
             
             // ensure there is a 'templates' property
             _context.Run("Handlebars.templates = Handlebars.templates || {};");
+            _context.Run("var temp = temp || {};");
             
             // setup an object which contains the compiled templates as properties.
             // _context.Run("var templates = {};");
@@ -91,6 +92,10 @@ namespace handlebars.cs
             return sb.ToString();
         }
 
+        public static string SingleRun(string template, dynamic context)
+        {
+            return SingleRun(template, JsonConvert.SerializeObject(context));        
+        }
         /// <summary>
         /// Here we presume the template has already been compiled and doesn't need to be passed again.
         /// </summary>
@@ -98,14 +103,16 @@ namespace handlebars.cs
         /// <param name="context"></param>
         /// <returns></returns>
         public static string SingleRun(string template, string context)
-        {
-            return (string)_context.Run("Handlebars.compile('" + template + "')(" + context + ")");
-            // Handlebars.compile(source)(context)
+        { 
+            return (string)_context.Run("Handlebars.compile('" + FormatTemplate(template) + "')(" + context + ");");             
         }
-
-
+         
         // Engine.Run("product-form", System.IO.ReadToEnd("_template/.handlebars"), JsonHelper.ToJson(new { title = "My New Post", body = "This is my first post!" }));
 
+        public static bool Exists(string name)
+        {           
+            return _templates.ContainsKey(name);
+        }
 
         public static string Run(string name, dynamic context)
         {
@@ -122,7 +129,7 @@ namespace handlebars.cs
 
         public static string Run(string name, string template, dynamic context)
         {
-            return Run(name, JsonConvert.SerializeObject(context));
+            return Run(name, template, JsonConvert.SerializeObject(context));
         }
 
         public static string Run(string name, string template, string context)
