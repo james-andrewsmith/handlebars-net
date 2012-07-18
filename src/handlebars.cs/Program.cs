@@ -29,7 +29,8 @@ namespace handlebars.cs
         }
 
         static void Main(string[] args)
-        { /*
+        {
+        /*
             context.SetParameter("console", new SystemConsole());
             context.Run(System.IO.File.ReadAllText("handlebars.js\\handlebars-1.0.0.beta.6.js"));
             context.Run("var source = '<div class=\"entry\"><h1>{{title}}</h1><div class=\"body\">{{{body}}}</div></div>';");
