@@ -23,7 +23,6 @@ namespace handlebars.cs
             
             // ensure there is a 'templates' property
             _context.Run("Handlebars.templates = Handlebars.templates || {};");
-            _context.Run("var temp = temp || {};");
             
             // setup an object which contains the compiled templates as properties.
             // _context.Run("var templates = {};");
@@ -90,6 +89,14 @@ namespace handlebars.cs
                 sb.AppendLine("Handlebars.template['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
             
             return sb.ToString();
+        }
+
+        public static void Clear()
+        {
+            foreach (var kvp in _templates)
+                _context.Run("delete Handlebars.template['" + kvp.Key + "'];");
+
+            _templates.Clear();
         }
 
         public static string SingleRun(string template, dynamic context)
