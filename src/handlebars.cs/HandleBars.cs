@@ -4,6 +4,7 @@ using System.Linq;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Web;
 
 using Noesis.Javascript;
 using Newtonsoft.Json;
@@ -60,11 +61,13 @@ namespace handlebars.cs
 
         private static string FormatTemplate(string template)
         {
-            return template.Replace("\r\n", " ")
-                           .Replace("\r", " ")
-                           .Replace("\t", " ")
-                           .Replace("  ", " ")
-                           .Replace("\n", " ");
+            return HttpUtility.JavaScriptStringEncode(template);
+
+            //return template.Replace("\r\n", " ")
+            //               .Replace("\r", " ")
+            //               .Replace("\t", " ")
+            //               .Replace("  ", " ")
+            //               .Replace("\n", " ");
         }
 
         public static void Delete(string name)
