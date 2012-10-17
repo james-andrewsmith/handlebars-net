@@ -75,8 +75,6 @@ namespace handlebars.cs
                 context.Run("var context = {title: \"My New Post\", body: \"This is my first post!\"};");
                 var test = context.Run("console.Print(template(context));");
 
-                
-
                 // Getting a parameter
                 Console.WriteLine("number: " + context.GetParameter("number"));
             }

@@ -28,10 +28,12 @@ namespace handlebars.cs
             // setup an object which contains the compiled templates as properties.
             // _context.Run("var templates = {};");
             _templates = new Dictionary<string, string>();
+            _partials = new Dictionary<string, string>();
         }
 
         private static JavascriptContext _context;
-        private static Dictionary<string, string> _templates;       
+        private static Dictionary<string, string> _templates;
+        private static Dictionary<string, string> _partials;        
 
         /// <summary>
         /// Used to add application specific registered helpers for the templates, for example
@@ -149,7 +151,11 @@ namespace handlebars.cs
 
             return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");            
         }
-
+         
+        public static string Partial(string name, string template)
+        {             
+            return (string)_context.Run("Handlebars.registerPartial('" + name + "', '" + FormatTemplate(template) + "');");
+        }
 
     }
 }
