@@ -126,6 +126,11 @@ namespace handlebars.cs
             return _templates.ContainsKey(name);
         }
 
+        public static bool PartialExists(string name)
+        {
+            return _partials.ContainsKey(name);
+        }
+
         public static string Run(string name, dynamic context)
         {
             return Run(name, JsonConvert.SerializeObject(context));
@@ -152,9 +157,12 @@ namespace handlebars.cs
             return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");            
         }
          
-        public static string Partial(string name, string template)
-        {             
-            return (string)_context.Run("Handlebars.registerPartial('" + name + "', '" + FormatTemplate(template) + "');");
+        public static void Partial(string name, string template)
+        {
+            if (_partials.ContainsKey(name))
+                return;
+
+            _context.Run("Handlebars.registerPartial('" + name + "', '" + FormatTemplate(template) + "');");
         }
 
     }
