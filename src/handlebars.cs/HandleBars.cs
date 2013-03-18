@@ -24,6 +24,7 @@ namespace handlebars.cs
             
             // ensure there is a 'templates' property
             _context.Run("Handlebars.templates = Handlebars.templates || {};");
+            _context.Run("Handlebars.partials = Handlebars.partials || {};");
             
             // setup an object which contains the compiled templates as properties.
             // _context.Run("var templates = {};");
