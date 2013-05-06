@@ -90,9 +90,9 @@ namespace handlebars.cs
         {
             var sb = new StringBuilder();
             sb.Append("var Handlebars = Handlebars || {};\n");
-            sb.Append("Handlebars.template = Handlebars.template || {};\n");
+            sb.Append("Handlebars.templates = Handlebars.templates || {};\n");
             foreach(var kvp in _templates)
-                sb.AppendLine("Handlebars.template['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
+                sb.AppendLine("Handlebars.templates['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
             
             return sb.ToString();
         }
@@ -100,7 +100,7 @@ namespace handlebars.cs
         public static void Clear()
         {
             foreach (var kvp in _templates)
-                _context.Run("delete Handlebars.template['" + kvp.Key + "'];");
+                _context.Run("delete Handlebars.templates['" + kvp.Key + "'];");
 
             _templates.Clear();
         }
