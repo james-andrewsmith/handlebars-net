@@ -19,7 +19,7 @@ namespace handlebars.cs
         {
             _context = new JavascriptContext();            
             var _assembly = Assembly.GetExecutingAssembly();
-            using (var _textStreamReader = new StreamReader(_assembly.GetManifestResourceStream("handlebars.cs.handlebars.js.handlebars-1.0.0.beta.6.js")))
+            using (var _textStreamReader = new StreamReader(_assembly.GetManifestResourceStream("handlebars.cs.handlebars.js.handlebars-1.0.0.js")))
                 _context.Run(_textStreamReader.ReadToEnd());
             
             // ensure there is a 'templates' property
@@ -34,7 +34,12 @@ namespace handlebars.cs
 
         private static JavascriptContext _context;
         private static Dictionary<string, string> _templates;
-        private static Dictionary<string, string> _partials;        
+        private static Dictionary<string, string> _partials;
+
+        public static List<string> Templates()
+        {
+            return _templates.Keys.ToList();
+        }
 
         /// <summary>
         /// Used to add application specific registered helpers for the templates, for example
