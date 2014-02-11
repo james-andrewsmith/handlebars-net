@@ -5,17 +5,28 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Web;
-
+ 
 using Noesis.Javascript;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 
 namespace handlebars.cs
-{
+{    
+
     public sealed class HandleBars
     {
-        static HandleBars()
+        private static readonly HandleBars instance = new HandleBars();
+
+        public static HandleBars Instance
+        {
+            get 
+            {
+                return instance; 
+            }
+        } 
+
+        public HandleBars()
         {
             _context = new JavascriptContext();            
             var _assembly = Assembly.GetExecutingAssembly();
@@ -32,11 +43,12 @@ namespace handlebars.cs
             _partials = new Dictionary<string, string>();
         }
 
-        private static JavascriptContext _context;
-        private static Dictionary<string, string> _templates;
-        private static Dictionary<string, string> _partials;
+        private JavascriptContext _context;
+        private Dictionary<string, string> _templates;
+        private Dictionary<string, string> _partials;
+        private readonly object _contextLock = new object();
 
-        public static List<string> Templates()
+        public List<string> Templates()
         {
             return _templates.Keys.ToList();
         }
@@ -46,7 +58,7 @@ namespace handlebars.cs
         /// some templates might use a custom 'product_list' helper.
         /// </summary>
         /// <param name="js"></param>
-        public static void AddHelpers(string js)
+        public void AddHelpers(string js)
         {
             _context.Run(js);
         }
@@ -57,17 +69,22 @@ namespace handlebars.cs
         /// </summary>
         /// <param name="name"></param>
         /// <param name="template"></param>
-        public static void Compile(string name, string template)
+        public bool Compile(string name, string template)
         {
-            if (_templates.ContainsKey(name))
-                throw new Exception("There is already a template with that name which has been compiled.");
+            lock (_contextLock)
+            {
+                if (_templates.ContainsKey(name))
+                    return false;
+                    // throw new Exception("There is already a template with that name which has been compiled.");
 
-            // note: this is not doing anything to check if the template is properly escaped.            
-            _context.Run("Handlebars.templates['" + name + "'] = Handlebars.compile('" + FormatTemplate(template) + "');");
-            _templates.Add(name, FormatTemplate(template));
+                // note: this is not doing anything to check if the template is properly escaped.            
+                _context.Run("Handlebars.templates['" + name + "'] = Handlebars.compile('" + FormatTemplate(template) + "');");
+                _templates.Add(name, FormatTemplate(template));
+            }
+            return true;
         }
 
-        private static string FormatTemplate(string template)
+        private string FormatTemplate(string template)
         {
             return HttpUtility.JavaScriptStringEncode(template);
 
@@ -78,7 +95,7 @@ namespace handlebars.cs
             //               .Replace("\n", " ");
         }
 
-        public static void Delete(string name)
+        public void Delete(string name)
         {
             _context.Run("delete Handlebars.templates['" + name + "'];");
             _templates.Remove(name);
@@ -91,26 +108,35 @@ namespace handlebars.cs
         /// code to compile the templates (again faster). 
         /// </summary>
         /// <returns></returns>
-        public static string GetPreCompileJS()
+        public string GetPreCompileJS()
         {
             var sb = new StringBuilder();
             sb.Append("var Handlebars = Handlebars || {};\n");
             sb.Append("Handlebars.templates = Handlebars.templates || {};\n");
+            sb.Append("Handlebars.partials = Handlebars.partials || {};\n");
+
+            foreach(var kvp in _partials)
+                sb.AppendLine("Handlebars.partials['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
+
             foreach(var kvp in _templates)
                 sb.AppendLine("Handlebars.templates['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
             
             return sb.ToString();
         }
 
-        public static void Clear()
+        public void Clear()
         {
             foreach (var kvp in _templates)
                 _context.Run("delete Handlebars.templates['" + kvp.Key + "'];");
 
+            foreach (var kvp in _partials)
+                _context.Run("delete Handlebars.partials['" + kvp.Key + "'];");
+
+            _partials.Clear();
             _templates.Clear();
         }
 
-        public static string SingleRun(string template, dynamic context)
+        public string SingleRun(string template, dynamic context)
         {
             return SingleRun(template, JsonConvert.SerializeObject(context));        
         }
@@ -120,29 +146,29 @@ namespace handlebars.cs
         /// <param name="name"></param>
         /// <param name="context"></param>
         /// <returns></returns>
-        public static string SingleRun(string template, string context)
+        public string SingleRun(string template, string context)
         { 
             return (string)_context.Run("Handlebars.compile('" + FormatTemplate(template) + "')(" + context + ");");             
         }
          
         // Engine.Run("product-form", System.IO.ReadToEnd("_template/.handlebars"), JsonHelper.ToJson(new { title = "My New Post", body = "This is my first post!" }));
 
-        public static bool Exists(string name)
+        public bool Exists(string name)
         {           
             return _templates.ContainsKey(name);
         }
 
-        public static bool PartialExists(string name)
+        public bool PartialExists(string name)
         {
             return _partials.ContainsKey(name);
         }
 
-        public static string Run(string name, dynamic context)
+        public string Run(string name, dynamic context)
         {
             return Run(name, JsonConvert.SerializeObject(context));
         }
 
-        public static string Run(string name, string context)
+        public string Run(string name, string context)
         {
             if (!_templates.ContainsKey(name))
                 throw new Exception("Could not find template \"" + name + "\"");
@@ -150,12 +176,12 @@ namespace handlebars.cs
             return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");    
         }
 
-        public static string Run(string name, string template, dynamic context)
+        public string Run(string name, string template, dynamic context)
         {
             return Run(name, template, JsonConvert.SerializeObject(context));
         }
 
-        public static string Run(string name, string template, string context)
+        public string Run(string name, string template, string context)
         {
             if (!_templates.ContainsKey(name))
                 Compile(name, template);
@@ -163,12 +189,16 @@ namespace handlebars.cs
             return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");            
         }
          
-        public static void Partial(string name, string template)
+        public void Partial(string name, string template)
         {
-            if (_partials.ContainsKey(name))
-                return;
+            lock (_contextLock)
+            {
+                if (_partials.ContainsKey(name))
+                    return;
 
-            _context.Run("Handlebars.registerPartial('" + name + "', '" + FormatTemplate(template) + "');");
+                _context.Run("Handlebars.registerPartial('" + name + "', '" + FormatTemplate(template) + "');");
+                _partials.Add(name, FormatTemplate(template));
+            }
         }
 
     }
