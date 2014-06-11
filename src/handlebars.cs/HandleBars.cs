@@ -78,7 +78,12 @@ namespace handlebars.cs
                     // throw new Exception("There is already a template with that name which has been compiled.");
 
                 // note: this is not doing anything to check if the template is properly escaped.            
-                _context.Run("Handlebars.templates['" + name + "'] = Handlebars.compile('" + FormatTemplate(template) + "');");
+                _context.Run(string.Concat("Handlebars.templates['", 
+                                           name,
+                                           "'] = Handlebars.compile('",
+                                           FormatTemplate(template),
+                                           "');"));
+
                 _templates.Add(name, FormatTemplate(template));
             }
             return true;
@@ -148,7 +153,7 @@ namespace handlebars.cs
         /// <returns></returns>
         public string SingleRun(string template, string context)
         { 
-            return (string)_context.Run("Handlebars.compile('" + FormatTemplate(template) + "')(" + context + ");");             
+            return (string)_context.Run(string.Concat("Handlebars.compile('", FormatTemplate(template), "')(", context, ");"));             
         }
          
         // Engine.Run("product-form", System.IO.ReadToEnd("_template/.handlebars"), JsonHelper.ToJson(new { title = "My New Post", body = "This is my first post!" }));
