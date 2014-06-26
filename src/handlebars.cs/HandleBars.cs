@@ -28,7 +28,8 @@ namespace handlebars.cs
 
         public HandleBars()
         {
-            _context = new JavascriptContext();            
+
+            _context = new HandleBarsClearScript();            
             var _assembly = Assembly.GetExecutingAssembly();
             using (var _textStreamReader = new StreamReader(_assembly.GetManifestResourceStream("handlebars.cs.handlebars.js.handlebars-1.0.0.js")))
                 _context.Run(_textStreamReader.ReadToEnd());
@@ -43,7 +44,7 @@ namespace handlebars.cs
             _partials = new Dictionary<string, string>();
         }
 
-        private JavascriptContext _context;
+        private HandleBarsClearScript _context;
         private Dictionary<string, string> _templates;
         private Dictionary<string, string> _partials;
         private readonly object _contextLock = new object();
@@ -121,10 +122,10 @@ namespace handlebars.cs
             sb.Append("Handlebars.partials = Handlebars.partials || {};\n");
 
             foreach(var kvp in _partials)
-                sb.AppendLine("Handlebars.partials['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
+                sb.AppendLine("Handlebars.partials['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Evaluate("Handlebars.precompile('" + kvp.Value + "');") + ");");
 
             foreach(var kvp in _templates)
-                sb.AppendLine("Handlebars.templates['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Run("Handlebars.precompile('" + kvp.Value + "');") + ");");
+                sb.AppendLine("Handlebars.templates['" + kvp.Key + "'] = Handlebars.template(" + (string)_context.Evaluate("Handlebars.precompile('" + kvp.Value + "');") + ");");
             
             return sb.ToString();
         }
@@ -153,7 +154,7 @@ namespace handlebars.cs
         /// <returns></returns>
         public string SingleRun(string template, string context)
         { 
-            return (string)_context.Run(string.Concat("Handlebars.compile('", FormatTemplate(template), "')(", context, ");"));             
+            return (string)_context.Evaluate(string.Concat("Handlebars.compile('", FormatTemplate(template), "')(", context, ");"));             
         }
          
         // Engine.Run("product-form", System.IO.ReadToEnd("_template/.handlebars"), JsonHelper.ToJson(new { title = "My New Post", body = "This is my first post!" }));
@@ -178,7 +179,7 @@ namespace handlebars.cs
             if (!_templates.ContainsKey(name))
                 throw new Exception("Could not find template \"" + name + "\"");
 
-            return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");    
+            return (string)_context.Evaluate("Handlebars.templates['" + name + "'](" + context + ");");    
         }
 
         public string Run(string name, string template, dynamic context)
@@ -191,7 +192,7 @@ namespace handlebars.cs
             if (!_templates.ContainsKey(name))
                 Compile(name, template);
 
-            return (string)_context.Run("Handlebars.templates['" + name + "'](" + context + ");");            
+            return (string)_context.Evaluate("Handlebars.templates['" + name + "'](" + context + ");");            
         }
          
         public void Partial(string name, string template)
