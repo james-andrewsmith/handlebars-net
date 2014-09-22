@@ -1,0 +1,31 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>{{title}}</title>
+    <style>
+        body {
+            font-family:Tahoma;
+            font-size:13px;
+            color:#1b1b1b;
+        }
+    </style>
+</head>
+<body>
+
+    <div style="width:600px;display:block;overflow:hidden;margin:0px auto;margin-top:60px;">
+        <div style="display:block;overflow:hidden;border-bottom:5px solid #CCC;margin-bottom:10px;padding-bottom:10px;">
+            Content here is cached: <br />
+            {{time}}            
+        </div>    
+        <div style="display:block;overflow:hidden;border-bottom:5px solid #CCC;margin-bottom:10px;padding-bottom:10px;">
+            Content here is a donut and filled every reload:<br />
+            {{donut 'Home' 'GetRandomMessage'}}
+        </div>
+        <div style="display:block;overflow:hidden;">
+            Content here is a donut with it's own cache, which expires every 10 seconds:<br />
+            {{donut 'Home' 'GetRandomMessageWithCache'}}
+        </div>
+    </div>
+
+</body>
+</html>
