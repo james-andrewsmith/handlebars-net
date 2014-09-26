@@ -55,6 +55,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="HandlebarsControllerConfiguration.cs" />
     <Compile Include="HandlebarsMediaTypeFormatter.cs" />
     <Compile Include="HttpUtility.cs" />
     <Compile Include="IRequestFormatter.cs" />

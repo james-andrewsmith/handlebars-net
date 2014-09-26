@@ -10,7 +10,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Http; 
+using System.Web.Http;
+using System.Web.Http.Controllers; 
 
 using Newtonsoft.Json;
 
@@ -276,11 +277,15 @@ namespace Handlebars.WebApi
 
         public override MediaTypeFormatter GetPerRequestFormatterInstance(Type type, HttpRequestMessage request, MediaTypeHeaderValue mediaType)
         {
-            if (request.GetActionDescriptor() == null)
+            HttpActionDescriptor actionDescriptor = request.GetActionDescriptor();
+            if (actionDescriptor == null)
                 return base.GetPerRequestFormatterInstance(type, request, mediaType);
 
-            var view = request.GetActionDescriptor().ControllerDescriptor.ControllerName + "/" +
-                       request.GetActionDescriptor().ActionName;
+            var view = actionDescriptor.ControllerDescriptor.ControllerName + "/" +
+                       actionDescriptor.ActionName;
+
+            if (actionDescriptor.ControllerDescriptor.Properties.ContainsKey("hb-prefix"))
+                view = (actionDescriptor.ControllerDescriptor.Properties["hb-prefix"] as string) + "/" + view;
 
             if (request.Properties.ContainsKey("hb-view"))
                 view = request.Properties["hb-view"] as string;
