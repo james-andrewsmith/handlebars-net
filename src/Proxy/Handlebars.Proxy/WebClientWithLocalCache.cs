@@ -6,10 +6,15 @@ using System.Threading.Tasks;
 using System.Net;
 using System.IO;
 
+#if __MonoCS__
+#else
 using ProtoBuf;
+#endif
 
 namespace Handlebars.Proxy
 {
+#if __MonoCS__
+#else
     [ProtoContract]
     public sealed class LocalCacheItem
     {
@@ -35,6 +40,7 @@ namespace Handlebars.Proxy
         }
 
     }
+#endif
 
     public static class WebClientExtensions
     {
@@ -113,7 +119,9 @@ namespace Handlebars.Proxy
                                         .Trim('-', ' ');
         }
     }
-
+    
+#if __MonoCS__
+#else
     public sealed class WebClientWithLocalCache : IDisposable
     {
 
@@ -206,4 +214,5 @@ namespace Handlebars.Proxy
         #endregion
 
     }
+#endif
 }

@@ -132,6 +132,10 @@
       <Project>{4a469d46-69bb-4f9c-a5b9-ca3dda0272fa}</Project>
       <Name>ClearScriptEngine</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\Engine\NodeEngine\NodeEngine.csproj">
+      <Project>{16e13ee5-3a1f-451c-85e4-d558f0b8b4c0}</Project>
+      <Name>NodeEngine</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\Handlebars.Helper\Handlebars.Helper.csproj">
       <Project>{c8b4a574-3e08-4523-8aa1-3f0e4bac362b}</Project>
       <Name>Handlebars.Helper</Name>

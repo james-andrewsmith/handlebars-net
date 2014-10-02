@@ -67,7 +67,12 @@ namespace Handlebars.Proxy
             }
 
             IKernel kernel = new StandardKernel();
-            kernel.Bind<IHandlebarsEngine>().To<ClearScriptEngine>().InSingletonScope();            
+            
+#if __MonoCS__
+            kernel.Bind<IHandlebarsEngine>().To<NodeEngine>().InSingletonScope();
+#else
+            kernel.Bind<IHandlebarsEngine>().To<ClearScriptEngine>().InSingletonScope();       
+#endif
 
             kernel.Bind<IHandlebarsResourceProvider>()
                   .To<LocalResourceProvider>()

@@ -61,7 +61,7 @@ namespace Handlebars.Proxy
                 }
 
 
-                using (var client = new WebClientWithLocalCache())
+                using (var client = new WebClient())
                 {
                     try
                     {
@@ -333,7 +333,7 @@ namespace Handlebars.Proxy
 
                 // Console.WriteLine("TODO: Fill Donut for: " + (string.IsNullOrEmpty(area) ? "" :  area + "\\") + controller + "\\" + action);
 
-                using (var client = new WebClientWithLocalCache())
+                using (var client = new WebClient())
                 {
                     var data = client.DownloadData(GetProxyUri(new Uri( "http://" +
                                                                           HandlebarsProxyConfiguration.Instance.Domain + 
