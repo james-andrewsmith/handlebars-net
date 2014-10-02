@@ -14,13 +14,12 @@ There are a few features from razor which have been implented:
 - Donut Caching
 - Master Template
 
-#### Flow
-A command line server which allows for local development of handlebars themes.
+#### Proxy
+The Handlebars WebAPI/MVC view engines can be set to skip rendering handlebars and instead return the raw request JSON which is normally passed to the Handlebars Engine for rendering. This command line server combines remote server data/requests with local templates. 
 
-- Live Reload
-- Uses a local cache of data allowing for completely offline development 
-- Preview UI changes using production data
-- 
+This provides a very light development environment, and is useful for allowing frontend devs to work with production data without setting up databases etc.
+
+I highly recommend using this with browser-sync, live-reload is awesome.
 
 #### Engines
 There are currently two engines: 
@@ -30,9 +29,8 @@ There are currently two engines:
 2. NodeEngine create a node server and makes async requests via HTTP. This is mainly included for Mono compatibility with Flow, allowing it to be cross platform. This is recommended for development only and is used.
 
 
-#### Benchmarks
+#### Usage
 
-Usage
 -----
 
 ``` csharp
@@ -46,8 +44,8 @@ var html = HandleBars.Run("test", new { title = "My New Post", body = "This is m
 
 ```
 
-Azure
------
+#### Azure
+
 If deploying to Windows Azure in a Web Role see the example project (ExampleAzureWebRole.csproj), 
 managed code requires the install of the VCRedistribute, and copying the JavaScript.NET dependency 
 to the IIS directory. For more info: (http://msdn.microsoft.com/en-us/library/windowsazure/hh694038.aspx)
