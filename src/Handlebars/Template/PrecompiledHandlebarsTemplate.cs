@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Http;
 using System.Linq;
 using System.Text;
 
@@ -20,13 +22,12 @@ namespace Handlebars
             this._provider = provider;
 
             // download the string
-            var js = "";
+            var js = new WebClient().DownloadString(uri);
             _engine.ImportPrecompile(js);
         }
         #endregion
 
         #region // Dependency Injection //
-        private readonly Uri _uri;
         private readonly IHandlebarsEngine _engine;
         private readonly IHandlebarsResourceProvider _provider;
         #endregion
@@ -35,7 +36,20 @@ namespace Handlebars
 
         public string Render(string name, string json)
         {
-            return _engine.Render(name, json);
+            try
+            {
+                return _engine.Render(name.ToLower(), json);
+            }
+            catch (Exception exp)
+            {
+                return @"<html>
+                         <head></head>
+                         <body>
+                         <h4>" + exp.Message + @"</h4>
+                         <pre>" + exp.StackTrace + @"</pre>
+                         </body>
+                         </html>";                        
+            }
         }
 
         #endregion
