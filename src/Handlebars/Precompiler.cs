@@ -23,7 +23,11 @@ namespace Handlebars
             _handlebars = HandlebarsFactory.CreateEngine();
             _templates = System.IO.Directory.EnumerateFiles(_root,
                                                             "*.handlebars",
-                                                            SearchOption.AllDirectories).ToList();            
+                                                            SearchOption.AllDirectories).Union(
+                                                            System.IO.Directory.EnumerateFiles(_root,
+                                                            "*.hbs",
+                                                            SearchOption.AllDirectories)                                                            
+                                                            ).ToList();            
 
             // var assembly = Assembly.GetExecutingAssembly();
             // var names = assembly.GetManifestResourceNames()
@@ -48,6 +52,7 @@ namespace Handlebars
                 var name = path.Replace(_root, "")
                                .Replace("_template\\", "")
                                .Replace("template\\", "")
+                               .Replace(".hbs", "")
                                .Replace(".handlebars", "")
                                .Replace("\\", "/")
                                .Trim('/')
@@ -137,7 +142,10 @@ namespace Handlebars
                     if (!_handlebars.PartialExists(name))
                     {
                         Console.WriteLine("Compiling parital \"" + name + "\""); 
-                        var path = System.IO.Path.Combine(_root, name + ".handlebars");
+                        var path = Path.Combine(_root, name + ".handlebars");
+                        if (!File.Exists(path))
+                            path = Path.Combine(_root, name + ".hbs");
+
                         var partial_template = CompactTemplate(File.ReadAllText(path, System.Text.Encoding.UTF8));
                         _handlebars.PartialCompile(name, partial_template);
                     }

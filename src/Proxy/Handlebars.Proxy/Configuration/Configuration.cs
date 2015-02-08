@@ -15,7 +15,8 @@ namespace Handlebars.Proxy
             {
                 Directory = System.Environment.CurrentDirectory,
                 Port = 8080, 
-                Hostname = "localhost"
+                Hostname = "localhost",
+                ContentDeliveryNetwork = "cdn.archfashion.dev"
             };
         }
 
@@ -72,6 +73,12 @@ namespace Handlebars.Proxy
         } 
          
         public bool LocalCache
+        {
+            get;
+            set;
+        }
+
+        public string ContentDeliveryNetwork
         {
             get;
             set;

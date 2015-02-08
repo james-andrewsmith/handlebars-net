@@ -18,11 +18,15 @@ namespace Handlebars.Proxy
     class Program
     {
        
-        // OUTPUT CACHE DOESN"T SAVE x-template HEADER when x-format=json
+        // todo: 
+        // -> OUTPUT CACHE DOESN'T SAVE x-template HEADER when x-format=json
+        // -> Use memory store instead
+        // -> Add etag support (look at the 
+        // -> Only return an x-template header when 
 
         static void Main(string[] args)
         {
-            Console.Write("\nHandlebars.Net Command Line [Version {0}]\n" +
+            Console.Write("\nHandlebars.Net Command Line [Version {0}]\n",
                           System.Reflection.Assembly.GetExecutingAssembly().GetName().Version);
 
             // arguments and their defaults
@@ -38,6 +42,9 @@ namespace Handlebars.Proxy
                 { "domain=",  
                   "The domain to proxy requests to with JSON suffixes", 
                   (v) => HandlebarsProxyConfiguration.Instance.Domain = v },
+                { "cdn=",  
+                  "The local replacement server for a Content Delivery Network", 
+                  (v) => HandlebarsProxyConfiguration.Instance.ContentDeliveryNetwork = v },
                 { "username=", 
                   "The username to authenticate with.", 
                   v => HandlebarsProxyConfiguration.Instance.Username = v },

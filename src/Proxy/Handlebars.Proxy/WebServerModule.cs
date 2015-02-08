@@ -61,6 +61,7 @@ namespace Handlebars.Proxy
                 }
 
 
+
                 using (var client = new WebClient())
                 {
                     try
@@ -86,13 +87,37 @@ namespace Handlebars.Proxy
                         // this means any logic around hostnames uses this
 
                         // o["_config"]["cdn"] = "//" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.CdnPort;
-                        o["_config"]["cdn"] = "//cdn.archfashion.dev";
+                        o["_config"]["cdn"] = HandlebarsProxyConfiguration.Instance.ContentDeliveryNetwork; // "//cdn.archfashion.dev";
                         o["_request"]["protocol"] = "http";
                         o["_request"]["gzip"] = false;
                         o["_request"]["fqdn"] = "http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
                         o["_request"]["hostname"] = HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
                         
+                        // Remove existing experiments
+                        // foreach (var experiment in o["_experiment"].Children())
+                        //     experiment.Remove();
+
+                        // Add an experiment with the variation as instructed by the request
+                        var qs = new UrlEncodingParser(context.Request.QueryString.ToUriComponent());
+                        if (!string.IsNullOrEmpty(qs["experiment"]) &&
+                            !string.IsNullOrEmpty(qs["alias"]))
+                        {
+                            JObject experiment = o["_experiment"] as JObject;
+                            if (experiment == null) experiment = new JObject();
+                            experiment.RemoveAll();
+                            experiment.Add(qs["experiment"].Urlify(), JObject.Parse(@"{""id"":""rAnDoMlEtTeRs"",""variation"":0,""variation_alias"":""" + qs["alias"].Urlify() + @"""}"));                             
+                        }
+                        
                         json = o.ToString(Formatting.None);
+
+                        // send the modified response back to the client (obviously the developer is 
+                        // trying to work out what is being combined with the template)
+                        if (qs["x-format"] == "json")
+                        {
+                            context.Response.StatusCode = 200;
+                            context.Response.ContentType = client.ResponseHeaders["Content-Type"];
+                            return context.Response.WriteAsync(json);
+                        }
 
                         templateName = client.ResponseHeaders["x-template"];
                         if (string.IsNullOrEmpty(templateName))
@@ -101,9 +126,16 @@ namespace Handlebars.Proxy
                             return context.Response.WriteAsync("No x-template header for URL: " + proxyUri.ToString());
                         }
 
-                        templateData = File.ReadAllText(Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
-                                                                     "\\template",
-                                                                     templateName.Replace("/", "\\") + ".handlebars"));
+                        var templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                        "\\template",
+                                                        templateName.Replace("/", "\\") + ".handlebars");
+
+                        if (!File.Exists(templatePath))
+                            templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                        "\\template",
+                                                        templateName.Replace("/", "\\") + ".hbs");
+
+                        templateData = File.ReadAllText(templatePath);
 
                         // if this is file not found send a friendly message
                         using (var render = new Trace("render"))
@@ -301,6 +333,8 @@ namespace Handlebars.Proxy
             builder.Port = 80;
             if (string.IsNullOrEmpty(builder.Query))
                 builder.Query = "x-format=json";
+            else if (builder.Query.Contains("x-format=json"))
+            { }
             else
                 builder.Query = builder.Query.TrimStart('?') + "&x-format=json";
             
@@ -352,9 +386,16 @@ namespace Handlebars.Proxy
                     json = o.ToString(Formatting.None);
 
                     var templateName = client.ResponseHeaders["x-template"];
-                    var templateData = File.ReadAllText(Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
-                                                                     "\\template",
-                                                                     templateName.Replace("/", "\\") + ".handlebars"));
+                    var templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                    "\\template",
+                                                    templateName.Replace("/", "\\") + ".handlebars");
+                    
+                    if (!File.Exists(templatePath))
+                        templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                    "\\template",
+                                                    templateName.Replace("/", "\\") + ".hbs");
+                    
+                    var templateData = File.ReadAllText(templatePath);
 
                     var html = _handlebars.Render(templateData, json);
                     input = input.Replace(m.Value, html);
@@ -502,9 +543,16 @@ namespace Handlebars.Proxy
 
                     if (!_handlebars.PartialExists(name))
                     {
-                        var partialTemplate =  File.ReadAllText(Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
-                                                                             "\\template",
-                                                                             name.Replace("/", "\\") + ".handlebars"));
+                        var partialPath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                       "\\template",
+                                                       name.Replace("/", "\\") + ".handlebars");
+
+                        if (!File.Exists(partialPath))
+                            partialPath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                       "\\template",
+                                                       name.Replace("/", "\\") + ".hbs");
+
+                        var partialTemplate =  File.ReadAllText(partialPath);
 
                         if (string.IsNullOrEmpty(partialTemplate))
                             throw new Exception("Partial " + name + " is empty, found in: \n" + template);

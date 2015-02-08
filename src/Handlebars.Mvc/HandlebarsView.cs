@@ -134,7 +134,7 @@ namespace HandlebarsViewEngine
             // make this only use the top level template, if we have a child donut
             // template, that is driven by the top template and irrelevent
             if (!viewContext.HttpContext.Response.IsRequestBeingRedirected)
-                viewContext.HttpContext.Response.AddHeader("x-template", _path.Replace("~/views", "").Replace(".handlebars", "").ToLower());
+                viewContext.HttpContext.Response.AddHeader("x-template", _path.Replace("~/views", "").Replace(".hbs", "").Replace(".handlebars", "").ToLower());
 
             html = FillSectionData(html, viewContext.ViewData);
 #if DEBUG
