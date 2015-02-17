@@ -60,14 +60,13 @@ namespace Handlebars.Proxy
                     return context.Response.WriteAsync(new byte[] { });
                 }
 
-
-
                 using (var client = new WebClient())
                 {
                     try
                     {
                         var proxyUri = GetProxyUri(context.Request.Uri);
                         client.Headers["User-Agent"] = context.Request.Headers["User-Agent"];
+                        client.Headers["Cookie"] = context.Request.Headers["Cookie"];
                         var data = client.DownloadData(proxyUri);
 
                         if (context.Request.Uri.PathAndQuery.StartsWith("/api") ||

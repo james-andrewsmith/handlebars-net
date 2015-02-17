@@ -3,6 +3,28 @@ var Handlebars = Handlebars || require('./../Script/handlebars-1.0.0.js');
 var accounting = accounting || require('./../Script/accounting.min.js');
 var moment = moment || require('./../Script/moment.min.js');
 
+Handlebars.registerHelper('moment', function (epoch, format) {
+    try {
+        if (!_.isNumber(epoch)) {
+            return '';
+        }
+
+        if (epoch <= 0) {
+            return '';
+        }
+
+        if (_.isBlank(format) || _.isNull(format) || _.isUndefined(format)) {
+            format = 'MMMM Do YYYY';
+        }
+
+        // return '';
+        return moment.unix(epoch).local().format(format);
+    }
+    catch (e) {
+        return e.toString();
+    }
+});
+
 Handlebars.registerHelper('friendly_date', function (epoch) {
     try {
         if (!_.isNumber(epoch)) {

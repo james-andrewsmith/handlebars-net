@@ -221,7 +221,7 @@ namespace Handlebars.WebApi
 
                 foreach (var donut in donuts)
                 {
-                    using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://" + Request.RequestUri.DnsSafeHost + "/" + donut))
+                    using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://" + Request.RequestUri.DnsSafeHost + (Request.RequestUri.IsDefaultPort ? "" : ":" + Request.RequestUri.Port) + "/" + donut))
                     {
                         request.Properties.Add("donut", true);
 

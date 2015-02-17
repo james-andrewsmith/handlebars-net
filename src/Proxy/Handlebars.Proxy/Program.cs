@@ -78,7 +78,9 @@ namespace Handlebars.Proxy
 #if __MonoCS__
             kernel.Bind<IHandlebarsEngine>().To<NodeEngine>().InSingletonScope();
 #else
-            kernel.Bind<IHandlebarsEngine>().To<ClearScriptEngine>().InSingletonScope();       
+            kernel.Bind<IHandlebarsEngine>()
+                  .To<ClearScriptEngine>()
+                  .InSingletonScope();       
 #endif
 
             kernel.Bind<IHandlebarsResourceProvider>()
@@ -89,7 +91,9 @@ namespace Handlebars.Proxy
                   .To<DevelopmentHandlebarsTemplate>() 
                   .InSingletonScope();
 
-            kernel.Bind<ProxyStartup>().To<ProxyStartup>().InSingletonScope();
+            kernel.Bind<ProxyStartup>()
+                  .To<ProxyStartup>()
+                  .InSingletonScope();
 
             using (WebApp.Start(new StartOptions("http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port), builder =>
                    {
@@ -105,7 +109,6 @@ namespace Handlebars.Proxy
                     running = ProcessCommand(command);
                 }
                 while (running);
-
             }
 
 
