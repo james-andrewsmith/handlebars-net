@@ -16,7 +16,8 @@ namespace Handlebars.Proxy
                 Directory = System.Environment.CurrentDirectory,
                 Port = 8080, 
                 Hostname = "localhost",
-                ContentDeliveryNetwork = "cdn.archfashion.dev"
+                ContentDeliveryNetwork = "cdn.archfashion.dev",
+                Scheme = "http"
             };
         }
 
@@ -24,6 +25,15 @@ namespace Handlebars.Proxy
         #endregion
 
         #region // Properties //         
+
+        /// <summary>
+        /// HTTP vs HTTPS
+        /// </summary>
+        public string Scheme
+        {
+            get;
+            set;
+        }
 
         /// <summary>
         /// The domain we are setting up a proxy to, eg: www.archfashion.com.au

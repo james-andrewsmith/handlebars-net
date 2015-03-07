@@ -24,6 +24,7 @@ var moment = moment || require('./../Script/moment.min.js');
 // odd
 // even
 
+
 Handlebars.registerHelper('each', function (context) {
 
     var j4 = Handlebars.Utils.j4
@@ -195,4 +196,37 @@ Handlebars.registerHelper('last', function (context, options) {
 // size 
 Handlebars.registerHelper('size', function (array) {
     return array.size;
+});
+
+Handlebars.registerHelper('each_reverse', function (context, options) {
+    var fn = options.fn, inverse = options.inverse;
+    var i = 0, ret = "", data;
+
+    if (options.data) {
+        data = Handlebars.createFrame(options.data);
+    }
+
+    if (context && typeof context === 'object') {
+        if (context instanceof Array) {
+            context = context.reverse();
+            for (var j = context.length; i < j; i++) {
+                if (data) { data.index = i; }
+                ret = ret + fn(context[i], { data: data });
+            }
+        } else {
+            for (var key in context) {
+                if (context.hasOwnProperty(key)) {
+                    if (data) { data.key = key; }
+                    ret = ret + fn(context[key], { data: data });
+                    i++;
+                }
+            }
+        }
+    }
+
+    if (i === 0) {
+        ret = inverse(this);
+    }
+
+    return ret;
 });

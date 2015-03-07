@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -18,10 +19,12 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using Handlebars;
+using RestSharp;
 
 namespace Handlebars.Proxy
 {
-    
+     
+
     public sealed class ProxyStartup
     {
 
@@ -32,12 +35,21 @@ namespace Handlebars.Proxy
             _template = template;
 
             HandlebarsConfiguration.Instance.TemplatePath = HandlebarsProxyConfiguration.Instance.Directory + "\\template";
+            _client = new RestClient(HandlebarsProxyConfiguration.Instance.Scheme +
+                                     "://" +
+                                     HandlebarsProxyConfiguration.Instance.Domain);
+
+            // we don't do this, as we miss the authentication headers
+            // we just pass redirects onto the browser and handle it like that
+            _client.FollowRedirects = false;
+            // 
         }
         #endregion
 
         #region // Dependency Injection //
         private readonly IHandlebarsEngine _handlebars;
         private readonly IHandlebarsTemplate _template;
+        private readonly RestClient _client;
         #endregion
 
         #region // Owin Entry Point //
@@ -48,7 +60,7 @@ namespace Handlebars.Proxy
         #endregion 
 
         // Invoked once per request.
-        public Task Invoke(IOwinContext context)
+        public async Task Invoke(IOwinContext context)
         {
             using (var trace = new Trace(context.Request.Uri.PathAndQuery.ToString()))
             {
@@ -57,191 +69,322 @@ namespace Handlebars.Proxy
                 if (context.Request.Uri.PathAndQuery == "/favicon.ico")
                 {
                     context.Response.StatusCode = 404;
-                    return context.Response.WriteAsync(new byte[] { });
+                    await context.Response.WriteAsync(new byte[] { });
+                    return;
                 }
 
-                using (var client = new WebClient())
+                try
                 {
-                    try
+                    RestRequest request = new RestRequest(GetProxyUri(context.Request.Uri));
+                    IRestResponse response;
+
+                    request.AddHeader("User-Agent", context.Request.Headers["User-Agent"]);
+
+                    if (context.Request.Headers["Cookie"] != null &&
+                        !string.IsNullOrEmpty(context.Request.Headers["Cookie"]))
                     {
-                        var proxyUri = GetProxyUri(context.Request.Uri);
-                        client.Headers["User-Agent"] = context.Request.Headers["User-Agent"];
-                        client.Headers["Cookie"] = context.Request.Headers["Cookie"];
-                        var data = client.DownloadData(proxyUri);
+                        var cookies = context.Request.Headers["Cookie"].Split(';')
+                                                                       .Select(_ => _.Trim());
 
-                        if (context.Request.Uri.PathAndQuery.StartsWith("/api") ||
-                            !client.ResponseHeaders["Content-Type"].Contains("application/json"))
+                        Console.WriteLine("Adding Cookies");
+                        foreach(var cookie in cookies)
                         {
-                            context.Response.StatusCode = 200;
-                            context.Response.ContentType = client.ResponseHeaders["Content-Type"];
-                            return context.Response.WriteAsync(data);
-                        }
-                         
-                        json = Encoding.UTF8.GetString(data);
-                        var o = JObject.Parse(json);
-
-                        o["debug"] = true;
-
-                        // here we need to ensure that we are replacing the hostname with the configured local version
-                        // this means any logic around hostnames uses this
-
-                        // o["_config"]["cdn"] = "//" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.CdnPort;
-                        o["_config"]["cdn"] = HandlebarsProxyConfiguration.Instance.ContentDeliveryNetwork; // "//cdn.archfashion.dev";
-                        o["_request"]["protocol"] = "http";
-                        o["_request"]["gzip"] = false;
-                        o["_request"]["fqdn"] = "http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
-                        o["_request"]["hostname"] = HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
-                        
-                        // Remove existing experiments
-                        // foreach (var experiment in o["_experiment"].Children())
-                        //     experiment.Remove();
-
-                        // Add an experiment with the variation as instructed by the request
-                        var qs = new UrlEncodingParser(context.Request.QueryString.ToUriComponent());
-                        if (!string.IsNullOrEmpty(qs["experiment"]) &&
-                            !string.IsNullOrEmpty(qs["alias"]))
-                        {
-                            JObject experiment = o["_experiment"] as JObject;
-                            if (experiment == null) experiment = new JObject();
-                            experiment.RemoveAll();
-                            experiment.Add(qs["experiment"].Urlify(), JObject.Parse(@"{""id"":""rAnDoMlEtTeRs"",""variation"":0,""variation_alias"":""" + qs["alias"].Urlify() + @"""}"));                             
-                        }
-                        
-                        json = o.ToString(Formatting.None);
-
-                        // send the modified response back to the client (obviously the developer is 
-                        // trying to work out what is being combined with the template)
-                        if (qs["x-format"] == "json")
-                        {
-                            context.Response.StatusCode = 200;
-                            context.Response.ContentType = client.ResponseHeaders["Content-Type"];
-                            return context.Response.WriteAsync(json);
-                        }
-
-                        templateName = client.ResponseHeaders["x-template"];
-                        if (string.IsNullOrEmpty(templateName))
-                        {
-                            Console.Error.WriteLineAsync("No x-template header for URL: " + proxyUri.ToString());
-                            return context.Response.WriteAsync("No x-template header for URL: " + proxyUri.ToString());
-                        }
-
-                        var templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
-                                                        "\\template",
-                                                        templateName.Replace("/", "\\") + ".handlebars");
-
-                        if (!File.Exists(templatePath))
-                            templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
-                                                        "\\template",
-                                                        templateName.Replace("/", "\\") + ".hbs");
-
-                        templateData = File.ReadAllText(templatePath);
-
-                        // if this is file not found send a friendly message
-                        using (var render = new Trace("render"))
-                        {
-                            // EnsurePartialAvailable(templateData);
-
-                            var r = _template.Render(templateName, json);
-
-                            var html = FillSectionData(r, json);
-
-                            var donuts = new List<string>();
-
-                            // detect the donuts
-                            int index = html.IndexOf("####donut:", 0, false);
-                            int length = 4;
-                            while (index != -1)
+                            var parts = cookie.Split('=');
+                            if (parts.Length == 2)
                             {
-                                length = html.IndexOf("####", index + 10, false) - index - 10;
-                                donuts.Add(html.ToString(index + 10, length));
-                                if (index + length > html.Length) break;
-                                index = html.IndexOf("####donut:", index + length, false);
+                                // HACK FOR COOKIES WHICH BREAK PROXY
+                                if (parts[0] != "afg")
+                                {
+                                    Console.WriteLine(parts[0] + "=" + parts[1]);
+                                    request.AddCookie(parts[0], parts[1]);
+                                }
                             }
+                        }
 
-                            // execute any donuts
-                            var sync = new object();
+                    }
+                    // var cookies = request.Parameters.Where(_ => _.Type == ParameterType.Cookie).ToList();
 
-                            var tasks = new List<Task<KeyValuePair<string, string>>>(donuts.Count);
-                            if (donuts.Count > 0)
+                    // _client.CookieContainer = new CookieContainer();
+                    // _client.CookieContainer.Add(new Cookie("af_auth", "CE40CDC2153962E1A6F9906A34163FA2A51D255BB7FED11A4DDA0BF45FC9034347246644A4C41CE27E75CE0C013DD57DDD53F176C0BB21D6E2D5174A5EFCC274356F02B9563B36FBA0A95BC27121B43873FF461728AE50F8F318597FD6E647FAE4AB41DDDFE10CB32F465522DA21DC12069FE4346C5C4BC7083B4EFB7ACF49F88A7ACA15C1950EFE44607BA31CA8DB61CD50F6BB", "", "." + HandlebarsProxyConfiguration.Instance.Domain.Replace("www", "").Trim('.')));
+
+
+
+                    // pass the same method through for all requests
+                    request.Method = (Method)Enum.Parse(typeof(Method), context.Request.Method, true);
+
+                    byte[] data;
+                    switch (context.Request.Method)
+                    {
+                        case "PUT":
+                        case "POST":
+                            using (var ms = new MemoryStream())
                             {
+                                context.Request.Body.CopyTo(ms);
+                                request.AddParameter(context.Request.Headers["Content-Type"],
+                                                     Encoding.UTF8.GetString(ms.ToArray()),
+                                                     ParameterType.RequestBody);
 
-                                // using (HttpMessageInvoker client = new HttpMessageInvoker(server))
-                                // {
-                                
-                                HttpClient Client = new HttpClient();
+                                response = await _client.ExecuteTaskAsync(request);
+                                data = response.RawBytes;
+
+                                var setCookie = response.Headers.Where(_ => _.Name == "Set-Cookie").FirstOrDefault();
+                                if (setCookie != null)
+                                {
+                                    var cookie = setCookie.Value.ToString();
+                                    cookie = cookie.Replace("." + HandlebarsProxyConfiguration.Instance.Domain.Replace("www", "").Trim('.'),
+                                                            HandlebarsProxyConfiguration.Instance.Hostname);
+                                    
+                                    Console.WriteLine("Set Cookie: " + cookie);
+                                    context.Response.Headers["Set-Cookie"] = cookie;
+
+                                }                                
+                            }
+                            break;
+
+                        default:
+                            response = await _client.ExecuteTaskAsync(request);
+                            data = response.RawBytes;
+                            break;
+                    }
+
+                    // set headers we need for compatibility in weird situations                       
+                    context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+                    context.Response.Headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE";
+                    context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
+
+                    // if this is a redirect, pass it through
+                    var location = response.Headers.Where(_ => _.Name == "Location").FirstOrDefault();
+                    if (location != null)
+                    {
+                        var locationUri = new Uri(location.Value.ToString());
+                        // locationUri.Host = HandlebarsProxyConfiguration.Instance.Hostname;
+                        // locationUri.Port = HandlebarsProxyConfiguration.Instance.Port;
+                        context.Response.Headers["Location"] = locationUri.PathAndQuery;
+                    }
+
+                    // if this is an API request, then pass it staight to the client, no template logic
+                    if (context.Request.Uri.PathAndQuery.StartsWith("/api") ||
+                        !response.ContentType.Contains("application/json") ||
+                        response.StatusCode == HttpStatusCode.Found ||
+                        response.StatusCode == HttpStatusCode.Redirect ||
+                        response.StatusCode == HttpStatusCode.TemporaryRedirect)
+                    {
+                        context.Response.StatusCode = (int)response.StatusCode;
+                        context.Response.ContentType = response.ContentType;
+                        await context.Response.WriteAsync(data);
+                        return;
+                    }
+
+                    // ok, now we apply some smarts, first things first, get the data as a JSON object
+                    json = Encoding.UTF8.GetString(data);
+                    var o = JObject.Parse(json);
+
+                    o["debug"] = true;
+
+                    // here we need to ensure that we are replacing the hostname with the configured local version
+                    // this means any logic around hostnames uses this
+                    o["_config"]["api"] = "http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
+                    o["_config"]["cdn"] = HandlebarsProxyConfiguration.Instance.ContentDeliveryNetwork; // "//cdn.archfashion.dev";
+                    o["_request"]["protocol"] = "http";
+                    o["_request"]["gzip"] = false;
+                    o["_request"]["fqdn"] = "http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
+                    o["_request"]["hostname"] = HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
+
+
+                    // Add an experiment with the variation as instructed by the request
+                    var qs = new UrlEncodingParser(context.Request.QueryString.ToUriComponent());
+                    if (!string.IsNullOrEmpty(qs["experiment"]) &&
+                        !string.IsNullOrEmpty(qs["alias"]))
+                    {
+                        JObject experiment = o["_experiment"] as JObject;
+                        if (experiment == null)
+                        {
+                            experiment = new JObject();
+                            o["_experiment"] = experiment;
+                        }
+                        experiment.RemoveAll();
+                        experiment.Add(qs["experiment"].Urlify(), JObject.Parse(@"{""id"":""rAnDoMlEtTeRs"",""variation"":0,""variation_alias"":""" + qs["alias"].Urlify() + @"""}"));
+                    }
+
+                    json = o.ToString(Formatting.None);
+
+                    // send the modified response back to the client (obviously the developer is 
+                    // trying to work out what is being combined with the template)
+                    if (qs["x-format"] == "json")
+                    {
+                        context.Response.StatusCode = 200;
+                        context.Response.ContentType = response.ContentType;
+                        await context.Response.WriteAsync(json);
+                        return;
+                    }
+
+                    // get the header which has the handlebars template in it
+                    var xTemplate = response.Headers.Where(_ => _.Name == "x-template").FirstOrDefault();
+                    if (xTemplate == null)
+                    {
+                        await Console.Error.WriteLineAsync("No x-template header for URL: " + request.Resource.ToString());
+                        await context.Response.WriteAsync("No x-template header for URL: " + request.Resource.ToString());
+                        return;
+                    }
+
+                    // get the local template
+                    templateName = xTemplate.Value.ToString();
+                    var templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                    "\\template",
+                                                    templateName.Replace("/", "\\") + ".handlebars");
+
+                    // try different file extension
+                    if (!File.Exists(templatePath))
+                        templatePath = Path.Combine(HandlebarsProxyConfiguration.Instance.Directory +
+                                                    "\\template",
+                                                    templateName.Replace("/", "\\") + ".hbs");
+
+                    // get the data of the template
+                    templateData = File.ReadAllText(templatePath);
+
+                    // if this is file not found send a friendly message
+                    using (var render = new Trace("render"))
+                    {
+
+                        var r = _template.Render(templateName, json);
+                        var html = FillSectionData(r, json);
+
+                        var donuts = new List<string>();
+                        var templates = new Dictionary<string, string>();
+
+                        // detect the donuts
+                        int index = html.IndexOf("####donut:", 0, false);
+                        int length = 4;
+                        while (index != -1)
+                        {
+                            length = html.IndexOf("####", index + 10, false) - index - 10;
+                            donuts.Add(html.ToString(index + 10, length));
+                            if (index + length > html.Length) break;
+                            index = html.IndexOf("####donut:", index + length, false);
+                        }
+
+                        // execute any donuts
+                        var sync = new object();
+
+                        var tasks = new List<Task<KeyValuePair<string, string>>>(donuts.Count);
+                        if (donuts.Count > 0)
+                        {
+                            var baseAddress = new Uri("http://example.com");
+                            using (var handler = new HttpClientHandler { UseCookies = false })
+                            using (HttpClient client = new HttpClient(handler) { BaseAddress = new Uri(HandlebarsProxyConfiguration.Instance.Scheme + "://" + HandlebarsProxyConfiguration.Instance.Domain) })
+                            {
                                 foreach (var donut in donuts)
-                                {                                    
-                                    using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, GetProxyUri(new Uri("http://" + HandlebarsProxyConfiguration.Instance.Domain + "/" + donut))))
+                                {
+                                    HttpRequestMessage drequest = new HttpRequestMessage(HttpMethod.Get, new Uri(HandlebarsProxyConfiguration.Instance.Scheme + "://" + HandlebarsProxyConfiguration.Instance.Domain + "/" + GetProxyUri(donut)));
+
+                                    drequest.Headers.TryAddWithoutValidation("User-Agent", context.Request.Headers["User-Agent"]);
+                                    drequest.Headers.TryAddWithoutValidation("Cookie", context.Request.Headers["Cookie"]);
+                                    
+                                       var t = client.SendAsync(drequest, CancellationToken.None)
+                                                     .ContinueWith(_ =>
+                                                     {
+                                                         if (_.IsFaulted ||
+                                                             !_.Result.IsSuccessStatusCode)
+                                                         {
+                                                             Console.WriteLine("Donut Failed");                                                             
+                                                         }
+
+                                                         var template = _.Result.Headers.GetValues("x-template").FirstOrDefault();
+                                                         if (!string.IsNullOrEmpty(template))
+                                                             lock (sync)
+                                                                 templates.Add(donut, template);
+
+                                                         return _.Result.Content.ReadAsStringAsync();
+                                                     })
+                                                     .ContinueWith(_ =>
+                                                     {
+                                                         var doo = JObject.Parse(_.Result.Result);
+
+                                                         // within the handlebars environment replace the 
+                                                         doo["_config"]["api"] = "http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
+                                                         doo["_config"]["cdn"] = HandlebarsProxyConfiguration.Instance.ContentDeliveryNetwork;
+                                                         doo["_request"]["protocol"] = "http";
+                                                         doo["_request"]["gzip"] = false;
+                                                         doo["_request"]["fqdn"] = "http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
+                                                         doo["_request"]["hostname"] = HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
+
+                                                         try
+                                                         {
+                                                             doo.Remove("_experiment");
+                                                             doo.Add("_experiment", o["_experiment"].ToString(Formatting.Indented));
+                                                         }
+                                                         catch (Exception exp)
+                                                         {
+                                                             Console.WriteLine("Donut Error");
+                                                             Console.WriteLine(exp.Message);
+                                                             Console.WriteLine(exp.StackTrace);
+                                                         }
+
+                                                         var template = donut;
+                                                         if (templates.ContainsKey(donut))
+                                                             template = templates[donut];
+
+                                                         return new KeyValuePair<string, string>(donut, _template.Render(template, doo.ToString(Formatting.None)));
+                                                     });
+
+                                    if (!t.IsFaulted)
                                     {
-                                        using (HttpResponseMessage response = Client.SendAsync(request, CancellationToken.None).Result)
+                                        lock (sync)
                                         {
-                                            if (response.IsSuccessStatusCode)
-                                                lock (sync)
-                                                    tasks.Add(response.Content
-                                                                      .ReadAsStringAsync()
-                                                                      .ContinueWith((_) =>
-                                                                      {
-                                                                          var doo = JObject.Parse(_.Result);
-
-
-                                                                          doo["debug"] = true;
-
-                                                                          // here we need to ensure that we are replacing the hostname with the configured local version
-                                                                          // this means any logic around hostnames uses this
-
-                                                                          // o["_config"]["cdn"] = "//" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.CdnPort;
-                                                                          doo["_config"]["cdn"] = "//cdn.archfashion.dev";
-                                                                          doo["_request"]["protocol"] = "http";
-                                                                          doo["_request"]["gzip"] = false;
-                                                                          doo["_request"]["fqdn"] = "http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
-                                                                          doo["_request"]["hostname"] = HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port;
-
-                                                                          return new KeyValuePair<string, string>(donut, _template.Render(donut, doo.ToString(Formatting.None)));
-                                                                      }));
+                                            tasks.Add(t);
                                         }
                                     }
                                 }
-                                // }
 
-                                Task.WaitAll(tasks.ToArray());
+
+                                try
+                                {
+                                    Task.WaitAll(tasks.ToArray());
+                                }
+                                catch (Exception)
+                                {
+
+                                }
                             }
-
-                            foreach(var task in tasks)
-                            {
-                                html.Replace("####donut:" + task.Result.Key + "####", 
-                                             task.Result.Value);
-                            }
-                            
-                            context.Response.Headers["cookie"] = client.ResponseHeaders["cookie"];
-                            context.Response.ContentType = "text/html";
-
-                            // make sure the temp partials are cleared
-                            _handlebars.Clear();
-
-                            return context.Response.WriteAsync(html.ToString());
                         }
-                         
 
+                        // go through the sucessful tasks
+                        foreach (var task in tasks)
+                        {
+                            html.Replace("####donut:" + task.Result.Key + "####", task.Result.Value);
+                        }
 
+                        context.Response.ContentType = "text/html";
 
+                        // make sure the temp partials are cleared
+                        _handlebars.Clear();
+                        await context.Response.WriteAsync(html.ToString());
+                        return;
                     }
-                    catch (Exception exp)
-                    {
-                        return context.Response.WriteAsync(context.Request.Uri.ToString() +
-                                                     "\n" +
-                                                     exp.Message +
-                                                     "\n" +
-                                                     exp.StackTrace);
-                        Console.Error.WriteLineAsync(context.Request.Uri.ToString() +
-                                                     "\n" +
-                                                     exp.Message +
-                                                     "\n" +
-                                                     exp.StackTrace);
-                    }
-
-                    
 
                 }
+                catch (Exception exp)
+                {
+                    // output any errors
+                    Console.Error.WriteLine(context.Request.Uri.ToString() +
+                                            "\n" +
+                                            exp.Message +
+                                            "\n" +
+                                            exp.StackTrace);
+
+                    // send them to the client as well
+                    Task.WaitAll(context.Response.WriteAsync(context.Request.Uri.ToString() +
+                                                             "\n" +
+                                                             exp.Message +
+                                                             "\n" +
+                                                             exp.StackTrace));
+
+                    return;
+                }
+
+
+
+
             }
             
         }
@@ -325,11 +468,13 @@ namespace Handlebars.Proxy
             return type;
         }
 
-        private Uri GetProxyUri(Uri uri)
+        private string GetProxyUri(Uri uri)
         {
             var builder = new UriBuilder(uri);
+            builder.Scheme = HandlebarsProxyConfiguration.Instance.Scheme;
             builder.Host = HandlebarsProxyConfiguration.Instance.Domain;
-            builder.Port = 80;
+            builder.Port = HandlebarsProxyConfiguration.Instance.Scheme.ToLower() == "https" ? 443 : 80;
+
             if (string.IsNullOrEmpty(builder.Query))
                 builder.Query = "x-format=json";
             else if (builder.Query.Contains("x-format=json"))
@@ -337,7 +482,147 @@ namespace Handlebars.Proxy
             else
                 builder.Query = builder.Query.TrimStart('?') + "&x-format=json";
             
-            return builder.Uri;
+            return builder.Uri.PathAndQuery;
+        }
+
+        private string GetProxyUri(string path)
+        {
+            var builder = new UriBuilder();
+            builder.Path = path;
+            builder.Scheme = HandlebarsProxyConfiguration.Instance.Scheme;
+            builder.Host = HandlebarsProxyConfiguration.Instance.Domain;
+            builder.Port = HandlebarsProxyConfiguration.Instance.Scheme.ToLower() == "https" ? 443 : 80;
+
+            if (string.IsNullOrEmpty(builder.Query))
+                builder.Query = "x-format=json";
+            else if (builder.Query.Contains("x-format=json"))
+            { }
+            else
+                builder.Query = builder.Query.TrimStart('?') + "&x-format=json";
+
+            return builder.Uri.PathAndQuery;
+        }
+
+        public static CookieCollection GetAllCookiesFromHeader(string strHeader, string strHost)
+        {
+            ArrayList al = new ArrayList();
+            CookieCollection cc = new CookieCollection();
+            if (strHeader != string.Empty)
+            {
+                al = ConvertCookieHeaderToArrayList(strHeader);
+                cc = ConvertCookieArraysToCookieCollection(al, strHost);
+            }
+            return cc;
+        }
+
+
+        private static ArrayList ConvertCookieHeaderToArrayList(string strCookHeader)
+        {
+            strCookHeader = strCookHeader.Replace("\r", "");
+            strCookHeader = strCookHeader.Replace("\n", "");
+            string[] strCookTemp = strCookHeader.Split(',');
+            ArrayList al = new ArrayList();
+            int i = 0;
+            int n = strCookTemp.Length;
+            while (i < n)
+            {
+                if (strCookTemp[i].IndexOf("expires=", StringComparison.OrdinalIgnoreCase) > 0)
+                {
+                    al.Add(strCookTemp[i] + "," + strCookTemp[i + 1]);
+                    i = i + 1;
+                }
+                else
+                {
+                    al.Add(strCookTemp[i]);
+                }
+                i = i + 1;
+            }
+            return al;
+        }
+
+
+        private static CookieCollection ConvertCookieArraysToCookieCollection(ArrayList al, string strHost)
+        {
+            CookieCollection cc = new CookieCollection();
+
+            int alcount = al.Count;
+            string strEachCook;
+            string[] strEachCookParts;
+            for (int i = 0; i < alcount; i++)
+            {
+                strEachCook = al[i].ToString();
+                strEachCookParts = strEachCook.Split(';');
+                int intEachCookPartsCount = strEachCookParts.Length;
+                string strCNameAndCValue = string.Empty;
+                string strPNameAndPValue = string.Empty;
+                string strDNameAndDValue = string.Empty;
+                string[] NameValuePairTemp;
+                Cookie cookTemp = new Cookie();
+
+                for (int j = 0; j < intEachCookPartsCount; j++)
+                {
+                    if (j == 0)
+                    {
+                        strCNameAndCValue = strEachCookParts[j];
+                        if (strCNameAndCValue != string.Empty)
+                        {
+                            int firstEqual = strCNameAndCValue.IndexOf("=");
+                            string firstName = strCNameAndCValue.Substring(0, firstEqual);
+                            string allValue = strCNameAndCValue.Substring(firstEqual + 1, strCNameAndCValue.Length - (firstEqual + 1));
+                            cookTemp.Name = firstName;
+                            cookTemp.Value = allValue;
+                        }
+                        continue;
+                    }
+                    if (strEachCookParts[j].IndexOf("path", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        strPNameAndPValue = strEachCookParts[j];
+                        if (strPNameAndPValue != string.Empty)
+                        {
+                            NameValuePairTemp = strPNameAndPValue.Split('=');
+                            if (NameValuePairTemp[1] != string.Empty)
+                            {
+                                cookTemp.Path = NameValuePairTemp[1];
+                            }
+                            else
+                            {
+                                cookTemp.Path = "/";
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (strEachCookParts[j].IndexOf("domain", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        strPNameAndPValue = strEachCookParts[j];
+                        if (strPNameAndPValue != string.Empty)
+                        {
+                            NameValuePairTemp = strPNameAndPValue.Split('=');
+
+                            if (NameValuePairTemp[1] != string.Empty)
+                            {
+                                cookTemp.Domain = NameValuePairTemp[1];
+                            }
+                            else
+                            {
+                                cookTemp.Domain = strHost;
+                            }
+                        }
+                        continue;
+                    }
+                }
+
+                if (cookTemp.Path == string.Empty)
+                {
+                    cookTemp.Path = "/";
+                }
+                if (cookTemp.Domain == string.Empty)
+                {
+                    cookTemp.Domain = strHost;
+                }
+                cc.Add(cookTemp);
+            }
+            return cc;
         }
 
         private static readonly Regex PartialRegex = new Regex(@"({{> (.+)}})", RegexOptions.Compiled);
@@ -368,7 +653,11 @@ namespace Handlebars.Proxy
 
                 using (var client = new WebClient())
                 {
-                    var data = client.DownloadData(GetProxyUri(new Uri( "http://" +
+                    // client.Headers["User-Agent"] = context.Request.Headers["User-Agent"];
+                    // client.Headers["Cookie"] = context.Request.Headers["Cookie"];
+                        
+                    var data = client.DownloadData(GetProxyUri(new Uri(   HandlebarsProxyConfiguration.Instance.Scheme +
+                                                                          "://" +
                                                                           HandlebarsProxyConfiguration.Instance.Domain + 
                                                                           "/" +
                                                                           (string.IsNullOrEmpty(area) ? "" : area + "/") + 
@@ -404,7 +693,6 @@ namespace Handlebars.Proxy
             
             return input;
         }
-
 
         private class SectionData
         {

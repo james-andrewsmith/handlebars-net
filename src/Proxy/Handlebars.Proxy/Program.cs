@@ -26,6 +26,7 @@ namespace Handlebars.Proxy
 
         static void Main(string[] args)
         {
+            
             Console.Write("\nHandlebars.Net Command Line [Version {0}]\n",
                           System.Reflection.Assembly.GetExecutingAssembly().GetName().Version);
 
@@ -51,6 +52,9 @@ namespace Handlebars.Proxy
                 { "password=", 
                   "The password to authenticate with.", 
                   v => HandlebarsProxyConfiguration.Instance.Password = v },
+                { "scheme=", 
+                  "The scheme of the url", 
+                  v => HandlebarsProxyConfiguration.Instance.Scheme = v },
                 { "port=", 
                   "The port to run the webserver on", 
                   (int v) => HandlebarsProxyConfiguration.Instance.Port = v }, 

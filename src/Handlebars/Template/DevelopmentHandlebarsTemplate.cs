@@ -39,13 +39,8 @@ namespace Handlebars
             }
             catch (Exception exp)
             {
-                return @"<html>
-                         <head></head>
-                         <body>
-                         <h4>" + exp.Message + @"</h4>
-                         <pre>" + exp.StackTrace + @"</pre>
-                         </body>
-                         </html>";                        
+                return @"<h4>" + exp.Message + @"</h4>
+                         <pre>" + exp.StackTrace + @"</pre>";                        
             }
         }
 

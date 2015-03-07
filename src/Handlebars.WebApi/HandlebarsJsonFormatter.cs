@@ -43,6 +43,7 @@ namespace Handlebars.WebApi
             HandlebarsJsonFormatter formatter = (HandlebarsJsonFormatter)base.GetPerRequestFormatterInstance(type, request, mediaType);
             formatter.View = view; 
             formatter.Request = request;
+            request.Headers.TryAddWithoutValidation("x-template", View);
             return formatter;
         }
 
@@ -60,6 +61,7 @@ namespace Handlebars.WebApi
             using (StreamWriter writer = new StreamWriter(writeStream))
             {
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                content.Headers.TryAddWithoutValidation("x-template", View);
                 writer.WriteAsync(json);
             }
         }

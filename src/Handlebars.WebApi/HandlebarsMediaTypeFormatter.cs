@@ -189,6 +189,7 @@ namespace Handlebars.WebApi
 
             // detect any master or sections and fill them
             var html = FillSectionData(r, json); 
+
             // 1. Get the whole template
             // 2. Find any "donut" tags
             // 3. Dynamically execute request
@@ -196,8 +197,7 @@ namespace Handlebars.WebApi
             //    -> Make sure no vunrabilities through this 
             //    -> Keep any A/B testing decisions
             //    -> Keep cookies etc
-            //    -> Allow cookies to be set?
-            
+            //    -> Allow cookies to be set?            
 
             var donuts = new List<string>();
 
@@ -254,17 +254,7 @@ namespace Handlebars.WebApi
             using (StreamWriter writer = new StreamWriter(writeStream))
             {
                 content.Headers.ContentType = new MediaTypeHeaderValue("text/html");
-
-                // if we are going to cache the output for "donut" caching
-                // here is where we need to do it...
-
-                // -> Attribute
-                // -> OutputCacheStore (eg: MemoryCache or a file cache)
-                // -> MetaCacheStore (eg: Redis)
-                // -> Perhaps move the whole donut logic into a class
-                //    which is then reused for the donut substituion against
-                //    a cached result?
-
+                
                 foreach(var task in tasks)
                 {
                     html.Replace("####donut:" + task.Result.Key + "####", 
@@ -293,6 +283,7 @@ namespace Handlebars.WebApi
             HandlebarsMediaTypeFormatter formatter = (HandlebarsMediaTypeFormatter)base.GetPerRequestFormatterInstance(type, request, mediaType);
             formatter.View = view;
             formatter.Request = request;
+            // request.Headers.Add("x-template", view);
             return formatter;
         }
         
