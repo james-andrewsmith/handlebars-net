@@ -9,7 +9,7 @@ using Ninject.Modules;
 
 namespace Handlebars
 {
-    public sealed class NodeModule : NinjectModule
+    public sealed class ClearScriptModule : NinjectModule
     {
         public override void Load()
         {

@@ -18,11 +18,16 @@ namespace Handlebars.Proxy
     class Program
     {
        
-        // OUTPUT CACHE DOESN"T SAVE x-template HEADER when x-format=json
+        // todo: 
+        // -> OUTPUT CACHE DOESN'T SAVE x-template HEADER when x-format=json
+        // -> Use memory store instead
+        // -> Add etag support (look at the 
+        // -> Only return an x-template header when 
 
         static void Main(string[] args)
         {
-            Console.Write("\nHandlebars.Net Command Line [Version {0}]\n" +
+            
+            Console.Write("\nHandlebars.Net Command Line [Version {0}]\n",
                           System.Reflection.Assembly.GetExecutingAssembly().GetName().Version);
 
             // arguments and their defaults
@@ -38,12 +43,21 @@ namespace Handlebars.Proxy
                 { "domain=",  
                   "The domain to proxy requests to with JSON suffixes", 
                   (v) => HandlebarsProxyConfiguration.Instance.Domain = v },
+                { "domainport=",  
+                  "The domain to proxy requests to with JSON suffixes", 
+                  (v) => HandlebarsProxyConfiguration.Instance.DomainPort = Convert.ToInt32(v) },
+                { "cdn=",  
+                  "The local replacement server for a Content Delivery Network", 
+                  (v) => HandlebarsProxyConfiguration.Instance.ContentDeliveryNetwork = v },
                 { "username=", 
                   "The username to authenticate with.", 
                   v => HandlebarsProxyConfiguration.Instance.Username = v },
                 { "password=", 
                   "The password to authenticate with.", 
                   v => HandlebarsProxyConfiguration.Instance.Password = v },
+                { "scheme=", 
+                  "The scheme of the url", 
+                  v => HandlebarsProxyConfiguration.Instance.Scheme = v },
                 { "port=", 
                   "The port to run the webserver on", 
                   (int v) => HandlebarsProxyConfiguration.Instance.Port = v }, 
@@ -58,6 +72,12 @@ namespace Handlebars.Proxy
                 if (!HandlebarsProxyConfiguration.Instance.IsValid())
                     throw new Exception("There are missing variables");
 
+                // set the proxy port
+                if (HandlebarsProxyConfiguration.Instance.DomainPort == 0 ||
+                    HandlebarsProxyConfiguration.Instance.DomainPort == 80)
+                    HandlebarsProxyConfiguration.Instance.DomainPort = HandlebarsProxyConfiguration.Instance.Scheme.ToLower() == "https" ? 443 : 80;
+            
+
             }
             catch (OptionException e)
             {
@@ -71,7 +91,9 @@ namespace Handlebars.Proxy
 #if __MonoCS__
             kernel.Bind<IHandlebarsEngine>().To<NodeEngine>().InSingletonScope();
 #else
-            kernel.Bind<IHandlebarsEngine>().To<ClearScriptEngine>().InSingletonScope();       
+            kernel.Bind<IHandlebarsEngine>()
+                  .To<ClearScriptEngine>()
+                  .InSingletonScope();       
 #endif
 
             kernel.Bind<IHandlebarsResourceProvider>()
@@ -81,8 +103,10 @@ namespace Handlebars.Proxy
             kernel.Bind<IHandlebarsTemplate>()
                   .To<DevelopmentHandlebarsTemplate>() 
                   .InSingletonScope();
-
-            kernel.Bind<ProxyStartup>().To<ProxyStartup>().InSingletonScope();
+            
+            kernel.Bind<ProxyStartup>()
+                  .To<ProxyStartup>()
+                  .InSingletonScope();
 
             using (WebApp.Start(new StartOptions("http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port), builder =>
                    {
@@ -98,7 +122,6 @@ namespace Handlebars.Proxy
                     running = ProcessCommand(command);
                 }
                 while (running);
-
             }
 
 

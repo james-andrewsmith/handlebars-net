@@ -39,6 +39,8 @@ namespace Handlebars
         #region // Constructor //
         public ClearScriptEngine(IHandlebarsResourceProvider resourceProvider)
         {
+            Console.Out.WriteLine("ClearScriptEngine Loaded");
+
             _resourceProvider = resourceProvider;
 
             _context = new V8ScriptEngine();
@@ -68,7 +70,7 @@ namespace Handlebars
         public void Clear()
         {
             _context.Execute("Handlebars.templates = []; " + 
-                                    "Handlebars.partials = []; ");
+                             "Handlebars.partials = []; ");
             
             // a good opportunity to return ram to it's rightful owner
             _context.CollectGarbage(true);

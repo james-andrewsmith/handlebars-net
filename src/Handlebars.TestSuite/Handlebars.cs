@@ -55,6 +55,20 @@ namespace Handlebars.TestSuite
             Assert.IsNotNull(test);
         }
 
+        [TestMethod]
+        public void ImportPreCompileJS()
+        {
+            _engine.Compile("test-precompile", template);
+            var js = _engine.ExportPrecompile();
+            _engine.ImportPrecompile(js);
+
+            var output = _engine.Render("test-precompile", new { title = "My New Post", body = "This is my first post!" });
+
+            // note: yui compress can gain 50% before gzip, 70% after.
+            Assert.AreEqual("<div class=\"entry\"><h1>My New Post</h1><div class=\"body\">This is my first post!</div></div>",
+                            output);
+        }
+
 
         [TestMethod]
         public void ExecuteCompiledTemplate()

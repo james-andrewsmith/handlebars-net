@@ -44,7 +44,9 @@ namespace Handlebars
             var baseUri = HandlebarsConfiguration.Instance.BasePath; // new Uri(HandlebarsConfiguration.Instance.BasePath);
             var scriptUri = HandlebarsConfiguration.Instance.TemplatePath; // new Uri(HandlebarsConfiguration.Instance.TemplatePath);
 
-            if (!template.EndsWith(".handlebars") && !template.EndsWith(".js"))
+            if (!template.EndsWith(".handlebars") &&
+                !template.EndsWith(".hbs") && 
+                !template.EndsWith(".js"))
                 template += ".handlebars";
 
             string path = Path.Combine(baseUri.ToString(), template.TrimStart('\\'));

@@ -27,7 +27,10 @@ namespace Handlebars.WebApi
 
         public string GetTemplate(string view)
         {
-            return File.ReadAllText(MapPath.Map("~/bin/_template/" + view + ".handlebars"));            
+            if (File.Exists(MapPath.Map("~/bin/_template/" + view + ".handlebars")))
+                return File.ReadAllText(MapPath.Map("~/bin/_template/" + view + ".handlebars"));
+
+            return MapPath.Map("~/bin/_template/" + view + ".hbs");
         }
 
         public string GetScript(string script)

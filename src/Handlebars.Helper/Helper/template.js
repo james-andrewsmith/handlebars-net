@@ -4,7 +4,7 @@ var accounting = accounting || require('./../Script/accounting.min.js');
 var moment = moment || require('./../Script/moment.min.js');
 
 // a shortcut for {{section 'contents'}}
-Handlebars.registerHelper('contents', function () {    
+Handlebars.registerHelper('contents', function () {
     var result = '\n<!--####section:start:contents####-->' +
                  '\n<!--####section:stop:contents####-->';
     return new Handlebars.SafeString(result);
@@ -15,7 +15,7 @@ Handlebars.registerHelper('section', function (name, options) {
 
 
     // name of the section
-    // wrap the contents of the block with 
+    // wrap the contents of the block with
     // ####section:start:{name}####
     // ####section:stop:{name}####
 
@@ -42,20 +42,15 @@ Handlebars.registerHelper('master', function (path) {
     // we assume master templates are in the root directory, not scurrying around for them
     // {{master "/home/app.handlebars"}}
     // ####master:/home/app.handlebars####
-    var result = '####master:' + path + '####';    
+    var result = '####master:' + path + '####';
     return new Handlebars.SafeString(result);
 });
 
 // {{#donut controller="Home" action="RenderCart"}}
 // {{#donut "Home.RenderCart"}}
-Handlebars.registerHelper('donut', function (controller, action) {
-
+Handlebars.registerHelper('donut', function () {
     // get the controller and the action to be executed
-    // output:
-    // ###donut:Home:Cart###
-    controller = Handlebars.Utils.escapeExpression(controller);
-    action = Handlebars.Utils.escapeExpression(action);
-
-    var result = '####donut:' + controller + '/' + action + '####';
+    var args = Array.prototype.slice.call(arguments, 0, -1);
+    var result = '####donut:' + args.join('/') + '####';
     return new Handlebars.SafeString(result);
 });

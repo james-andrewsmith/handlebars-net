@@ -15,7 +15,10 @@ namespace Handlebars.Proxy
             {
                 Directory = System.Environment.CurrentDirectory,
                 Port = 8080, 
-                Hostname = "localhost"
+                Hostname = "localhost",
+                ContentDeliveryNetwork = "cdn.archfashion.dev",
+                Scheme = "http",
+                DomainPort = 0
             };
         }
 
@@ -25,6 +28,15 @@ namespace Handlebars.Proxy
         #region // Properties //         
 
         /// <summary>
+        /// HTTP vs HTTPS
+        /// </summary>
+        public string Scheme
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
         /// The domain we are setting up a proxy to, eg: www.archfashion.com.au
         /// </summary>
         public string Domain
@@ -32,6 +44,13 @@ namespace Handlebars.Proxy
             get;
             set;
         }
+
+        public int DomainPort
+        {
+            get;
+            set;
+        }
+
 
         /// <summary>
         /// Where on the local drive can the templates be found, will 
@@ -72,6 +91,12 @@ namespace Handlebars.Proxy
         } 
          
         public bool LocalCache
+        {
+            get;
+            set;
+        }
+
+        public string ContentDeliveryNetwork
         {
             get;
             set;

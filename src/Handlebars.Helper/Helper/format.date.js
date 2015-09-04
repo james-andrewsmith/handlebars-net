@@ -3,6 +3,36 @@ var Handlebars = Handlebars || require('./../Script/handlebars-1.0.0.js');
 var accounting = accounting || require('./../Script/accounting.min.js');
 var moment = moment || require('./../Script/moment.min.js');
 
+Handlebars.registerHelper('moment', function (date, format) {
+    try {
+        var isEpoch = _.isNumber(date);
+
+        if (_.isBlank(format) || _.isNull(format) || _.isUndefined(format)) {
+            format = 'MMMM Do YYYY';
+        }
+
+        if (isEpoch)
+        {
+            return moment.unix(date).local().format(format);
+        }
+
+        return moment(date).format(format);
+    }
+    catch (e) {
+        return date.toString();
+    }
+});
+
+
+Handlebars.registerHelper('timefrom', function (date) {
+    try {
+        return moment(date).calendar();
+    }
+    catch (e) {
+        return date.toString();
+    }
+});
+
 Handlebars.registerHelper('friendly_date', function (epoch) {
     try {
         if (!_.isNumber(epoch)) {
@@ -39,10 +69,10 @@ Handlebars.registerHelper("hour", function (hour) {
     var h = Number(shour.substr(0, 2));
     var ampm = h < 12;
     if (!ampm && h != 12) {
-        h = (h - 12);        
+        h = (h - 12);
     }
     h = (h < 10) ? '0' + h : '' + h;
-    
+
     var m = shour.substr(2);
 
     return h + ':' + m + (ampm ? 'am' : 'pm');
@@ -51,7 +81,7 @@ Handlebars.registerHelper("hour", function (hour) {
 
 
 Handlebars.registerHelper("dayname", function (day) {
-    
+
     day = parseInt(day);
 
     switch (day) {
