@@ -1,6 +1,8 @@
 Handlebars.Net
 =================
 
+[![Join the chat at https://gitter.im/james-andrewsmith/handlebars-net](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/james-andrewsmith/handlebars-net?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 A .net wrapper around existing JavaScript implemented within a number of engines to act as a view engine for MVC or WebAPI. Includes a number of tools to speed up development and deployment of front ends. 
 
 #### Why
