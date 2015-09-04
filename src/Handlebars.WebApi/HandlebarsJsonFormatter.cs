@@ -16,13 +16,19 @@ using Newtonsoft.Json.Converters;
 
 namespace Handlebars.WebApi
 {
-    public sealed class HandlebarsJsonFormatter : BufferedMediaTypeFormatter
+    public sealed class HandlebarsJsonFormatter : MediaTypeFormatter
     {
         public HandlebarsJsonFormatter(IRequestFormatter formatter) : base()
         {
             this._formatter = formatter;
             this.SupportedMediaTypes.Add(new MediaTypeHeaderValue("application/json"));
             this.MediaTypeMappings.Add(new QueryStringMapping("x-format", "json", new MediaTypeHeaderValue("application/json")));
+        }
+
+        public HandlebarsJsonFormatter(IRequestFormatter formatter, string view, HttpRequestMessage request) : this(formatter)
+        {
+            this._view = view;
+            this._request = request;
         }
 
         public override MediaTypeFormatter GetPerRequestFormatterInstance(Type type, HttpRequestMessage request, MediaTypeHeaderValue mediaType)
@@ -40,30 +46,24 @@ namespace Handlebars.WebApi
             if (request.Properties.ContainsKey("hb-view"))
                 view = request.Properties["hb-view"] as string;
 
-            HandlebarsJsonFormatter formatter = (HandlebarsJsonFormatter)base.GetPerRequestFormatterInstance(type, request, mediaType);
-            formatter.View = view; 
-            formatter.Request = request;
-            request.Headers.TryAddWithoutValidation("x-template", View);
-            return formatter;
+            return new HandlebarsJsonFormatter(_formatter, view, request);
         }
 
         #region // Dependency Injection // 
         private readonly IRequestFormatter _formatter;
-
-        public string View;
-        public HttpRequestMessage Request;
+        private readonly string _view;
+        private readonly HttpRequestMessage _request;
         #endregion
 
-        public override void WriteToStream(Type type, object value, Stream writeStream, HttpContent content)
-        {
-            var json = _formatter.GetContext(Request, value);
-
-            using (StreamWriter writer = new StreamWriter(writeStream))
-            {
-                content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                content.Headers.TryAddWithoutValidation("x-template", View);
-                writer.WriteAsync(json);
-            }
+        public override async Task WriteToStreamAsync(Type type, object value, Stream stream, HttpContent content, TransportContext transportContext, CancellationToken cancellationToken)
+        {            
+            var json = _formatter.GetContext(_request, value);
+            var writer = new StreamWriter(stream);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            content.Headers.TryAddWithoutValidation("x-template", _view);
+            await writer.WriteAsync(json);
+            await writer.FlushAsync();
+            return;
         }
 
         public override bool CanReadType(Type type)

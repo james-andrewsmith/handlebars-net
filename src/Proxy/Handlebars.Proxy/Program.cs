@@ -43,6 +43,9 @@ namespace Handlebars.Proxy
                 { "domain=",  
                   "The domain to proxy requests to with JSON suffixes", 
                   (v) => HandlebarsProxyConfiguration.Instance.Domain = v },
+                { "domainport=",  
+                  "The domain to proxy requests to with JSON suffixes", 
+                  (v) => HandlebarsProxyConfiguration.Instance.DomainPort = Convert.ToInt32(v) },
                 { "cdn=",  
                   "The local replacement server for a Content Delivery Network", 
                   (v) => HandlebarsProxyConfiguration.Instance.ContentDeliveryNetwork = v },
@@ -69,6 +72,12 @@ namespace Handlebars.Proxy
                 if (!HandlebarsProxyConfiguration.Instance.IsValid())
                     throw new Exception("There are missing variables");
 
+                // set the proxy port
+                if (HandlebarsProxyConfiguration.Instance.DomainPort == 0 ||
+                    HandlebarsProxyConfiguration.Instance.DomainPort == 80)
+                    HandlebarsProxyConfiguration.Instance.DomainPort = HandlebarsProxyConfiguration.Instance.Scheme.ToLower() == "https" ? 443 : 80;
+            
+
             }
             catch (OptionException e)
             {
@@ -94,7 +103,7 @@ namespace Handlebars.Proxy
             kernel.Bind<IHandlebarsTemplate>()
                   .To<DevelopmentHandlebarsTemplate>() 
                   .InSingletonScope();
-
+            
             kernel.Bind<ProxyStartup>()
                   .To<ProxyStartup>()
                   .InSingletonScope();

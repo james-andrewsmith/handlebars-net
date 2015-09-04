@@ -17,7 +17,8 @@ namespace Handlebars.Proxy
                 Port = 8080, 
                 Hostname = "localhost",
                 ContentDeliveryNetwork = "cdn.archfashion.dev",
-                Scheme = "http"
+                Scheme = "http",
+                DomainPort = 0
             };
         }
 
@@ -43,6 +44,13 @@ namespace Handlebars.Proxy
             get;
             set;
         }
+
+        public int DomainPort
+        {
+            get;
+            set;
+        }
+
 
         /// <summary>
         /// Where on the local drive can the templates be found, will 
