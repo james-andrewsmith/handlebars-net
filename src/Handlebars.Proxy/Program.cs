@@ -21,13 +21,12 @@ namespace Handlebars.Proxy
         // todo: 
         // -> OUTPUT CACHE DOESN'T SAVE x-template HEADER when x-format=json
         // -> Use memory store instead
-        // -> Add etag support (look at the 
-        // -> Only return an x-template header when 
+        // -> Add etag support  
 
         static void Main(string[] args)
         {
             
-            Console.Write("\nHandlebars.Net Command Line [Version {0}]\n",
+            Console.Write("\nHandlebars Command Line [Version {0}]\n",
                           System.Reflection.Assembly.GetExecutingAssembly().GetName().Version);
 
             // arguments and their defaults
@@ -157,10 +156,8 @@ namespace Handlebars.Proxy
             if (line == "quit" || line == "exit" || line == "!q")
                 return false;
 
-            
-            // example commands 
-            // -> Clear Cache
-            
+            // todo:
+            // -> Clear the cache
 
             return true;
         }
