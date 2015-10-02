@@ -6,6 +6,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Security;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -44,6 +45,7 @@ namespace Handlebars.Proxy
             // we just pass redirects onto the browser and handle it like that
             webRequestHandler.AllowAutoRedirect = false;
             webRequestHandler.UseCookies = false;
+            webRequestHandler.ServerCertificateValidationCallback = new RemoteCertificateValidationCallback((sender, certificate, chain, policyErrors) => { return true; });
 
             _store = MemoryCache.Default;
             _client = new HttpClient(webRequestHandler, false)
@@ -486,6 +488,7 @@ namespace Handlebars.Proxy
                         // go through the sucessful tasks
                         foreach (var task in tasks)
                         {
+                            await Console.Out.WriteLineAsync("Replacing Donut: " + task.Result.Key);
                             html.Replace("####donut:" + task.Result.Key + "####", task.Result.Value);
                         }
 
