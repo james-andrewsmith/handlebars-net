@@ -171,8 +171,16 @@ namespace Handlebars.Proxy
                                     if (!string.IsNullOrEmpty(setCookie))
                                     {
                                         var cookie = setCookie.ToString();
-                                        cookie = cookie.Replace("." + HandlebarsProxyConfiguration.Instance.Domain.Replace("www", "").Trim('.'),
-                                                                HandlebarsProxyConfiguration.Instance.Hostname);
+                                        cookie = cookie.Replace("." + HandlebarsProxyConfiguration.Instance.Domain
+                                            .Replace("www.", "")
+                                            .Replace("m.staging", "")
+                                            .Replace("staging.", "")
+                                            .Replace("m.archfashion.", "archfasion.")
+                                            .Trim('.'),
+                                            "." + HandlebarsProxyConfiguration.Instance.Hostname.Replace("www.", ""));
+
+                                        cookie = cookie.Replace("; secure; HttpOnly", "");
+                                        //cookie = cookie.Replace("HttpOnly", "");
 
                                         Console.WriteLine("Set Cookie: " + cookie);
                                         context.Response.Headers["Set-Cookie"] = cookie;
@@ -204,9 +212,15 @@ namespace Handlebars.Proxy
                     }
 
                     // set headers we need for compatibility in weird situations                       
-                    context.Response.Headers["Access-Control-Allow-Origin"] = "*";
-                    context.Response.Headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE";
-                    context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type";
+                    context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+
+                    var origin = "http://" + HandlebarsProxyConfiguration.Instance.Hostname;
+                    if (context.Request.Headers.ContainsKey("origin"))
+                        origin = context.Request.Headers["origin"];
+
+                    context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+                    context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
+                    context.Response.Headers["Access-Control-Allow-Headers"] = "X-Requested-With, Content-Type, withCredentials, Set-Cookie";
 
                     // if this is a redirect, pass it through
                     var location = response.Headers.Location;

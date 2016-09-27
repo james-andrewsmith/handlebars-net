@@ -141,7 +141,6 @@ namespace Handlebars.WebApi
                 contents = contents.Remove(start, stop - start);
             }
 
-
             // remove the master tag from the render pipeline
             contents = contents.Remove(masterMatch.Index, masterMatch.Length);
 
@@ -211,7 +210,6 @@ namespace Handlebars.WebApi
             
             StringBuilder html;
 
-            var donuts = new List<string>();
 
             if (_request.Properties.ContainsKey("donut") &&
                 (bool)_request.Properties["donut"] == true)
@@ -223,88 +221,14 @@ namespace Handlebars.WebApi
             {
                 html = FillSectionData(r, json);
 
-                // detect the donuts
-                int index = html.IndexOf("####donut:", 0, false);
-                int length = 4;
-                while (index != -1)
-                {
-                    length = html.IndexOf("####", index + 10, false) - index - 10;
-                    donuts.Add(html.ToString(index + 10, length));
-                    if (index + length > html.Length) break;
-                    index = html.IndexOf("####donut:", index + length, false);
-                }
+                // if there is an outputcache property here, then provide some HTML
+                // to be output cached. Minus the donut data of course
+                if (_request.Properties.ContainsKey("outputcache:key"))
+                    _request.Properties.Add("outputcache:content", html.ToString());
+
+                html = await FillDonutData(html, _request);
             }             
-                
-            // execute any donuts
-            var sync = new object();
-
-            var donutContent = new Dictionary<string, string>();
-            if (donuts.Count > 0)
-            {
-
-                foreach (var donut in donuts)
-                {
-                    using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://" + _request.RequestUri.DnsSafeHost + (_request.RequestUri.IsDefaultPort ? "" : ":" + _request.RequestUri.Port) + "/" + donut))
-                    {
-                        request.Properties.Add("donut", true);
-
-                        // ensure any AB testing in donut actions uses the same grouping
-                        if (_request.Properties.ContainsKey("experiment"))
-                            request.Properties.Add("experiment", _request.Properties["experiment"]);
-
-                        // so we can use the same identify and context information in higher up 
-                        // donut functions.
-                        if (_request.Properties.ContainsKey("MS_OwinContext"))
-                            request.Properties.Add("MS_OwinContext", _request.Properties["MS_OwinContext"]);
-
-                        // temp: try catch to debug "bad headers"
-                        foreach (var header in _request.Headers)
-                        {
-                            try
-                            {
-                                request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                            }
-                            catch(Exception e)
-                            {
-                                Console.Out.WriteLineAsync("Handlebars - Add Header: " + e.Message);
-                            }
-                        }
-
-                        // this was previously causing a deadlock, never use .Result!!!! it is the 
-                        // root of all things evil.
-                        
-                        using (HttpResponseMessage response = await _client.SendAsync(request, CancellationToken.None))
-                        {
-                            if (response.IsSuccessStatusCode)
-                            {
-                                try
-                                {
-                                    var donutHtml = await response.Content.ReadAsStringAsync();
-                                    lock (sync)
-                                        donutContent.Add(donut, donutHtml);
-                                }
-                                catch (Exception exp)
-                                {
-                                    lock (sync)
-                                        donutContent.Add(donut, exp.Message);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // wait for the donut requests
-                // Console.Out.WriteLineAsync("HandlebarsMediaTypeFormatter: Donuts() " + sw.ElapsedMilliseconds + "ms");            
-            }
-
-            // StreamWriter writer = new StreamWriter(writeStream);
-            
-            
-                
-            foreach(var donut in donutContent)
-            {
-                html.Replace("####donut:" + donut.Key + "####", donut.Value);
-            }
+              
             // Console.Out.WriteLineAsync("HandlebarsMediaTypeFormatter: Replace() " + sw.ElapsedMilliseconds + "ms");
             
                 
@@ -338,6 +262,131 @@ namespace Handlebars.WebApi
             await writer.WriteAsync(output);
             await writer.FlushAsync();
             return;            
+        }
+
+        public async Task<StringBuilder> FillDonutData(StringBuilder html, HttpRequestMessage original)
+        {
+            var donuts = new Dictionary<string, SectionData>();
+            
+            // detect the donuts
+            SectionData donutSection = new SectionData();
+            int index = html.IndexOf("####donut:", 0, false);
+            int length = 4;
+            while (index != -1)
+            {
+                length = html.IndexOf("####", index + 10, false) - index - 10;
+                var key = html.ToString(index + 10, length);
+                
+                donutSection.Start = index;
+                donutSection.NameLength = length;
+                donutSection.Stop = index + length + 14;
+                donuts.Add(key, donutSection);
+
+                if (index + length > html.Length) break;
+                donutSection = new SectionData();
+                index = html.IndexOf("####donut:", index + length, false);
+            }
+            
+            // execute any donuts
+            if (donuts.Count > 0)
+            {
+                var tasks = new List<Task<DonutResult>>(donuts.Count);
+            
+                foreach (var donut in donuts)
+                {
+                    tasks.Add(ExecuteDonut(original, donut.Key));
+                }
+
+                await Task.WhenAll(tasks);
+
+                Dictionary<string, string> content = tasks.ToDictionary(_ => _.Result.Donut, 
+                                                                        _ => _.Result.Content);
+                                
+                var replacement = donuts.OrderByDescending(_ => _.Value.Stop);
+                foreach (KeyValuePair<string, SectionData> kvp in replacement)
+                {
+                    if (content.ContainsKey(kvp.Key))
+                    {
+                        html.Remove(kvp.Value.Start, kvp.Value.Stop - kvp.Value.Start);
+                        html.Insert(kvp.Value.Start, content[kvp.Key]);
+                    }
+                }
+
+
+            }            
+            
+            return html;
+        }
+
+        private class DonutResult
+        {
+            public string Donut
+            {
+                get;
+                set;
+            }
+
+            public string Content
+            {
+                get;
+                set;
+            }
+             
+        }
+
+        private async Task<DonutResult> ExecuteDonut(HttpRequestMessage original, string donut)
+        {
+            var result = new DonutResult
+            {
+                Donut = donut
+            };
+            
+            using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://" + original.RequestUri.DnsSafeHost + (original.RequestUri.IsDefaultPort ? "" : ":" + original.RequestUri.Port) + "/" + donut))
+            {
+                request.Properties.Add("donut", true);
+
+                // ensure any AB testing in donut actions uses the same grouping
+                if (original.Properties.ContainsKey("experiment"))
+                    request.Properties.Add("experiment", original.Properties["experiment"]);
+
+                // so we can use the same identify and context information in higher up 
+                // donut functions.
+                if (original.Properties.ContainsKey("MS_OwinContext"))
+                    request.Properties.Add("MS_OwinContext", original.Properties["MS_OwinContext"]);
+
+                // temp: try catch to debug "bad headers"
+                foreach (var header in original.Headers)
+                {
+                    try
+                    {
+                        request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Out.WriteLineAsync("Handlebars - Add Header: " + e.Message);
+                    }
+                }
+
+                // this was previously causing a deadlock, never use .Result!!!! it is the 
+                // root of all things evil.
+                using (HttpResponseMessage response = await _client.SendAsync(request, CancellationToken.None))
+                {
+                    if (response.IsSuccessStatusCode)
+                    {
+                        try
+                        {
+                            var donutHtml = await response.Content.ReadAsStringAsync();
+                            result.Content = donutHtml;
+                        }
+                        catch (Exception exp)
+                        {
+                            result.Content = exp.Message;
+                        }
+                    }
+                }
+            }
+            
+            return result;
         }
 
         public override MediaTypeFormatter GetPerRequestFormatterInstance(Type type, HttpRequestMessage request, MediaTypeHeaderValue mediaType)
