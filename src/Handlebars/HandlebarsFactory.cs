@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Reflection;
 
-using Ninject;
-using Ninject.Modules;
+using Autofac;
 
 namespace Handlebars
 {
@@ -14,42 +14,57 @@ namespace Handlebars
     public sealed class HandlebarsFactory
     {
         static HandlebarsFactory() 
-        {
-            kernel = new StandardKernel();
+        { 
+            var builder = new ContainerBuilder();
 
             // doesn't need anything
-            kernel.Bind<IHandlebarsResourceProvider>()
-                  .To<LocalResourceProvider>()
-                  .InSingletonScope();
+            builder.RegisterType<LocalResourceProvider>()
+                   .As<IHandlebarsResourceProvider>()
+                   .SingleInstance();             
 
             // requires resource loading
-            kernel.Load(HandlebarsConfiguration.Instance.Engine + ".dll");
+            builder.RegisterAssemblyModules(Assembly.LoadFile(HandlebarsConfiguration.Instance.Engine + ".dll"));
 
             // requires engine and resource loading
-            kernel.Bind<IHandlebarsTemplate>()
-                  .To<DevelopmentHandlebarsTemplate>()
-                  // .To<StandardHandlebarsTemplate>()
-                  .InSingletonScope();
-
+            builder.RegisterType<DevelopmentHandlebarsTemplate>()
+                   .As<IHandlebarsTemplate>()
+                   .SingleInstance();    
+             
+            container = builder.Build();
         }
 
-        private static StandardKernel kernel;
+        private static IContainer container;        
 
         public static IHandlebarsEngine CreateEngine()
         {
-            return kernel.Get<IHandlebarsEngine>();
+            return container.Resolve<IHandlebarsEngine>();
         }
 
         public static IHandlebarsTemplate CreateTemplate()
         {
-            return kernel.Get<IHandlebarsTemplate>();
+            return container.Resolve<IHandlebarsTemplate>();
         }
 
         public static IHandlebarsEngine Recreate()
         {
-            var k = new StandardKernel();
-            k.Load(HandlebarsConfiguration.Instance.Engine + ".dll");
-            kernel = k;
+            var builder = new ContainerBuilder();
+
+            // doesn't need anything
+            builder.RegisterType<LocalResourceProvider>()
+                   .As<IHandlebarsResourceProvider>()
+                   .SingleInstance();
+
+            // requires resource loading
+            builder.RegisterAssemblyModules(Assembly.LoadFile(HandlebarsConfiguration.Instance.Engine + ".dll"));
+
+            // requires engine and resource loading
+            builder.RegisterType<DevelopmentHandlebarsTemplate>()
+                   .As<IHandlebarsTemplate>()
+                   .SingleInstance();
+
+            // 
+            container = builder.Build();
+
             return CreateEngine();
         }
     }

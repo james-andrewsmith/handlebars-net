@@ -4,16 +4,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using Ninject;
-using Ninject.Modules;
+using Autofac;
 
 namespace Handlebars
 {
-    public sealed class ClearScriptModule : NinjectModule
+    public sealed class ClearScriptModule : Module
     {
-        public override void Load()
+        protected override void Load(ContainerBuilder builder)
         {
-            Bind<IHandlebarsEngine>().To<ClearScriptEngine>().InSingletonScope();
+            builder.RegisterType<ClearScriptEngine>()
+                   .As<IHandlebarsEngine>()
+                   .SingleInstance(); 
         }
     }
 }

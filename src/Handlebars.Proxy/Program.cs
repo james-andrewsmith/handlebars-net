@@ -10,14 +10,13 @@ using Microsoft.Owin.Hosting;
 using Microsoft.Owin;
 using NDesk.Options;
 
-using Ninject;
+using Autofac;
 
 namespace Handlebars.Proxy
 {    
 
     class Program
-    {
-       
+    {       
         // todo: 
         // -> OUTPUT CACHE DOESN'T SAVE x-template HEADER when x-format=json
         // -> Use memory store instead
@@ -85,32 +84,30 @@ namespace Handlebars.Proxy
                 return;
             }
 
-            IKernel kernel = new StandardKernel();
-            
-#if __MonoCS__
-            kernel.Bind<IHandlebarsEngine>().To<NodeEngine>().InSingletonScope();
-#else
-            kernel.Bind<IHandlebarsEngine>()
-                  .To<ClearScriptEngine>()
-                  .InSingletonScope();       
-#endif
+            var builder = new ContainerBuilder(); 
+             
+            builder.RegisterType<ClearScriptEngine>()
+                   .As<IHandlebarsEngine>()
+                   .SingleInstance();
 
-            kernel.Bind<IHandlebarsResourceProvider>()
-                  .To<LocalResourceProvider>()
-                  .InSingletonScope();
+            builder.RegisterType<LocalResourceProvider>()
+                   .As<IHandlebarsResourceProvider>()
+                   .SingleInstance();
 
-            kernel.Bind<IHandlebarsTemplate>()
-                  .To<DevelopmentHandlebarsTemplate>() 
-                  .InSingletonScope();
-            
-            kernel.Bind<ProxyStartup>()
-                  .To<ProxyStartup>()
-                  .InSingletonScope();
+            builder.RegisterType<DevelopmentHandlebarsTemplate>()
+                   .As<IHandlebarsTemplate>()
+                   .SingleInstance();
 
-            using (WebApp.Start(new StartOptions("http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port), builder =>
+            builder.RegisterType<ProxyStartup>()
+                   .AsSelf()
+                   .SingleInstance(); 
+
+            IContainer container = builder.Build();
+
+            using (WebApp.Start(new StartOptions("http://" + HandlebarsProxyConfiguration.Instance.Hostname + ":" + HandlebarsProxyConfiguration.Instance.Port), b =>
                    {
-                       var webHost = kernel.Get<ProxyStartup>();
-                       webHost.Configuration(builder);
+                       var webHost = container.Resolve<ProxyStartup>();
+                       webHost.Configuration(b);
                    }))
             {
                 Console.WriteLine("All services started");
