@@ -17,14 +17,11 @@ namespace Handlebars.WebApi
         {
 
             var values = context.RouteData.Values;
-
-            context.HttpContext.Items["routers"] = context.RouteData.Routers;
-
+             
             if (values.ContainsKey("controller"))
                 context.HttpContext.Items.Add("controller", values["controller"]);
             if (values.ContainsKey("action"))
                 context.HttpContext.Items.Add("action", values["action"]);
-
 
             await System.Console.Out.WriteLineAsync("AsyncActionFilter: " + context.HttpContext.Request.Path.Value);
 

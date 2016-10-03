@@ -10,11 +10,10 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Net.Http.Headers;
+using Microsoft.AspNetCore.Http.Features;
 
 using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.AspNetCore.Routing;
@@ -85,10 +84,35 @@ namespace Handlebars.WebApi
 
         private class SectionData
         {
-            public int NameLength;
-            public int Start;
-            public int Stop;
-            public string Contents;
+            public string Key
+            {
+                get;
+                set;
+            }
+
+            public int NameLength
+            {
+                get;
+                set;
+            }
+
+            public int Start
+            {
+                get;
+                set;
+            }
+
+            public int Stop
+            {
+                get;
+                set;
+            }
+
+            public string Contents
+            {
+                get;
+                set;
+            }
         }
 
         public StringBuilder FillSectionData(string contents, string json)
@@ -197,6 +221,26 @@ namespace Handlebars.WebApi
             return sb;
         }
 
+        private string GetView(HttpContext context)
+        {
+            // todo: optimise
+            var view = "";
+
+            if (context.Items.ContainsKey("hb-view"))
+                return context.Items["hb-view"] as string;
+
+            view += context.Items["controller"];
+            view += "/";
+            view += context.Items["action"];
+
+            // if (actionDescriptor.ControllerDescriptor.Properties.ContainsKey("hb-prefix"))
+            //     view = (actionDescriptor.ControllerDescriptor.Properties["hb-prefix"] as string) + "/" + view;
+
+            // context.ObjectType.
+
+            return view;
+        }
+
         public async Task WriteAsync(OutputFormatterWriteContext context)
         {
             // 1. Get controller from route (with DI done)
@@ -206,31 +250,13 @@ namespace Handlebars.WebApi
             // - Action can be raw object, does not need to apply type format,
             //   as we can do that here
 
-            
-
-            // todo: optimise
-            var view = "";
-            view += context.HttpContext.Items["controller"];
-            view += "/";
-            view += context.HttpContext.Items["action"];
-
-
-            // if (actionDescriptor.ControllerDescriptor.Properties.ContainsKey("hb-prefix"))
-            //     view = (actionDescriptor.ControllerDescriptor.Properties["hb-prefix"] as string) + "/" + view;
-
-            // context.ObjectType.
-            if (context.HttpContext.Items.ContainsKey("hb-view"))
-                view = context.HttpContext.Items["hb-view"] as string;
-
-            // await Console.Out.WriteLineAsync("HB Started: " + Request.RequestUri.PathAndQuery);
+            var view = GetView(context.HttpContext);             
             var json = _formatter.GetContext(context.HttpContext.Request, context.Object);
-            // string r = _template.Render(view, json);
-            string r = "test";
+            string r = _template.Render(view, json);
             
             StringBuilder html;
 
-            if (context.HttpContext.Items.ContainsKey("donut") &&
-                (bool)context.HttpContext.Items["donut"] == true)
+            if (context.HttpContext.Items.ContainsKey("donut"))
             {
                 // detect any master or sections and fill them
                 html = new StringBuilder(r);
@@ -238,37 +264,13 @@ namespace Handlebars.WebApi
             else
             {
                 html = FillSectionData(r, json);
-
-                // if there is an outputcache property here, then provide some HTML
-                // to be output cached. Minus the donut data of course
-                if (context.HttpContext.Items.ContainsKey("outputcache:key"))
-                    context.HttpContext.Items.Add("outputcache:content", html.ToString());
-
+                
+                // todo:
+                // hooks for adding to output cache
+                                
                 html = await FillDonutData(html, context.HttpContext.Request);
             }
-
-            // Console.Out.WriteLineAsync("HandlebarsMediaTypeFormatter: Replace() " + sw.ElapsedMilliseconds + "ms");                           
-            // await writer.WriteAsync(html.ToString()); 
-
-            // - Needs to support ANY url
-            if (context.HttpContext.Request.Path.Value.EndsWith("/1"))
-            {
-                // copy revevant details to new context
-                var dc = new DefaultHttpContext(context.HttpContext.Features);
-                foreach (var header in context.HttpContext.Request.Headers)
-                    dc.Request.Headers[header.Key] = header.Value;
-
-                dc.Request.Path = "/api/home/2";
-                dc.User = context.HttpContext.User;
-
-                IActionResult test = await _executor.Value.ExecuteAsync(context.HttpContext);
-                if (test is OkObjectResult) {
-                    var ok = ((OkObjectResult)test);
-                    var j = _formatter.GetContext(context.HttpContext.Request, ok.Value);
-                    // string re = _template.Render(view, j);
-                    // html.AppendLine(re);
-                }
-            }
+          
 
 
             string output, contentType;
@@ -304,149 +306,74 @@ namespace Handlebars.WebApi
 
         public async Task<StringBuilder> FillDonutData(StringBuilder html, HttpRequest original)
         {
-            var donuts = new Dictionary<string, SectionData>();
+            var donuts = new List<SectionData>();
             
             // detect the donuts
-            SectionData donutSection = new SectionData();
+            SectionData section = new SectionData();
             int index = html.IndexOf("####donut:", 0, false);
             int length = 4;
             while (index != -1)
             {
                 length = html.IndexOf("####", index + 10, false) - index - 10;
                 var key = html.ToString(index + 10, length);
-                
-                donutSection.Start = index;
-                donutSection.NameLength = length;
-                donutSection.Stop = index + length + 14;
-                donuts.Add(key, donutSection);
+
+                section.Key = key;
+                section.Start = index;
+                section.NameLength = length;
+                section.Stop = index + length + 14;
+                donuts.Add(section);
 
                 if (index + length > html.Length) break;
-                donutSection = new SectionData();
+                section = new SectionData();
                 index = html.IndexOf("####donut:", index + length, false);
             }
             
             // execute any donuts
             if (donuts.Count > 0)
             {
-                var tasks = new List<Task<DonutResult>>(donuts.Count);
-            
-                foreach (var donut in donuts)
+                // move backwards through the donuts 
+                
+                for(int i = donuts.Count; i > 0; i--)
                 {
-                    tasks.Add(ExecuteDonut(original, donut.Key));
-                }
+                    var kvp = donuts[i - 1];
 
-                await Task.WhenAll(tasks);
+                    string url = kvp.Key;
 
-                Dictionary<string, string> content = tasks.ToDictionary(_ => _.Result.Donut, 
-                                                                        _ => _.Result.Content);
-                                
-                var replacement = donuts.OrderByDescending(_ => _.Value.Stop);
-                foreach (KeyValuePair<string, SectionData> kvp in replacement)
-                {
-                    if (content.ContainsKey(kvp.Key))
+                    // copy revevant details to new context
+                    var features = new FeatureCollection(original.HttpContext.Features); 
+                    features.Set<IItemsFeature>(new ItemsFeature()); 
+                    var http = new DefaultHttpContext(features);
+                    
+                    foreach (var header in original.Headers)
+                        http.Request.Headers[header.Key] = header.Value;
+
+                    http.Items["donut"] = true;
+                    if (original.HttpContext.Items.ContainsKey("experiment"))
+                        http.Items.Add("experiment", original.HttpContext.Items["experiment"]);
+
+                    http.Request.Path = url;
+                    http.User = original.HttpContext.User;
+
+                    IActionResult result = await _executor.Value.ExecuteAsync(http, url);
+                    string value = $"<!-- {kvp.Key} -->";
+
+                    var view = GetView(http);
+
+                    if (result is OkObjectResult)
                     {
-                        html.Remove(kvp.Value.Start, kvp.Value.Stop - kvp.Value.Start);
-                        html.Insert(kvp.Value.Start, content[kvp.Key]);
+                        var ok = ((OkObjectResult)result);                        
+                        var j = _formatter.GetContext(http.Request, ok.Value);
+                        value = _template.Render(view, j);                        
                     }
-                }
+
+                    html.Remove(kvp.Start, kvp.Stop - kvp.Start);
+                    html.Insert(kvp.Start, value);
+                }                 
             }            
             
             return html;
-        }
-
-        private class DonutResult
-        {
-            public string Donut
-            {
-                get;
-                set;
-            }
-
-            public string Content
-            {
-                get;
-                set;
-            }
-             
-        }
-
-        private async Task<DonutResult> ExecuteDonut(HttpRequest original, string donut)
-        {
-            var result = new DonutResult
-            {
-                Donut = donut
-            };
-
-            // "http://" + original.Host.Host + (original.Host.Port == 80 ? "" : ":" + original.Host.Port) + 
-            using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "/" + donut))
-            {
-                request.Properties.Add("donut", true);
-
-                // ensure any AB testing in donut actions uses the same grouping
-                if (original.HttpContext.Items.ContainsKey("experiment"))
-                    request.Properties.Add("experiment", original.HttpContext.Items["experiment"]);
-
-                // so we can use the same identify and context information in higher up 
-                // donut functions.
-                if (original.HttpContext.Items.ContainsKey("MS_OwinContext"))
-                    request.Properties.Add("MS_OwinContext", original.HttpContext.Items["MS_OwinContext"]);
-
-                // temp: try catch to debug "bad headers"
-                foreach (var header in original.Headers)
-                {
-                    try
-                    {
-                        request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToString());
-                    }
-                    catch (Exception e)
-                    {
-                        Console.Out.WriteLine("Handlebars - Add Header: " + e.Message);
-                    }
-                }
-
-                // this was previously causing a deadlock, never use .Result!!!! it is the 
-                // root of all things evil.
-                /*
-                using (HttpResponseMessage response = await _client.Value.SendAsync(request, CancellationToken.None))
-                {
-                    if (response.IsSuccessStatusCode)
-                    {
-                        try
-                        {
-                            var donutHtml = await response.Content.ReadAsStringAsync();
-                            result.Content = donutHtml;
-                        }
-                        catch (Exception exp)
-                        {
-                            result.Content = exp.Message;
-                        }
-                    }
-                }*/
-            }
-            
-            return result;
-        }
-
-        /*
-        public override MediaTypeFormatter GetPerRequestFormatterInstance(Type type, HttpRequestMessage request, MediaTypeHeaderValue mediaType)
-        {
-            HttpActionDescriptor actionDescriptor = request.GetActionDescriptor();
-            if (actionDescriptor == null)
-                return base.GetPerRequestFormatterInstance(type, request, mediaType);
-
-            var view = actionDescriptor.ControllerDescriptor.ControllerName + "/" +
-                       actionDescriptor.ActionName;
-
-            if (actionDescriptor.ControllerDescriptor.Properties.ContainsKey("hb-prefix"))
-                view = (actionDescriptor.ControllerDescriptor.Properties["hb-prefix"] as string) + "/" + view;
-
-            if (request.Properties.ContainsKey("hb-view"))
-                view = request.Properties["hb-view"] as string;
-
-
-            return new HandlebarsMediaTypeFormatter(_config, _template, _formatter, _server, _client, view, request);
-
-        }*/
+        } 
+          
         
     }
 }

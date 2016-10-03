@@ -5,14 +5,12 @@ using System.Text;
 using System.Threading.Tasks;
 
 
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Net.Http.Headers;
-
-using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Template;
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Controllers;
 
@@ -27,7 +25,9 @@ namespace Handlebars.WebApi
                                         IActionDescriptorCollectionProvider actionDescriptorCollectionProvider,
                                         IActionSelectorDecisionTreeProvider actionSelectorDecisionTreeProvider,
                                         ControllerActionInvokerCache controllerActionInvokerCache,
-                                        IControllerFactory controllerFactory)
+                                        IControllerFactory controllerFactory,
+                                        HandlebarsRouteCache router,
+                                        IControllerArgumentBinder controllerArgumentBinder)
         {
             // Basic services
             this._actionSelector = actionSelector;
@@ -35,8 +35,10 @@ namespace Handlebars.WebApi
             this._actionDescriptorCollectionProvider = actionDescriptorCollectionProvider;
             this._controllerActionInvokerCache = controllerActionInvokerCache;
             this._controllerFactory = controllerFactory;
+            this._controllerArgumentBinder = controllerArgumentBinder;
             
             // get the tree from the attribute routes 
+            this._router = router.Get();
             this._actionSelectionDecisionTree = new HandlebarsActionSelectionDecisionTree(_actionDescriptorCollectionProvider.ActionDescriptors);
         }
         #endregion
@@ -48,45 +50,27 @@ namespace Handlebars.WebApi
         private readonly IActionSelectionDecisionTree _actionSelectionDecisionTree;
         private readonly ControllerActionInvokerCache _controllerActionInvokerCache;
         private readonly IControllerFactory _controllerFactory;
+        private readonly IRouter _router;
+        private readonly IControllerArgumentBinder _controllerArgumentBinder;
         #endregion
-
-        public async Task<IActionResult> ExecuteAsync(HttpContext context)
+         
+        public async Task<IActionResult> ExecuteAsync(HttpContext context, string url)
         {
-            var http = new DefaultHttpContext(context.Features);
-            var rc = new RouteContext(http);
-            // var rc = new RouteContext(new DefaultHttpContext());
-            rc.RouteData.Values.Add("action", "Get");
-            rc.RouteData.Values.Add("controller", "Home");
-            rc.RouteData.Values.Add("id", 2);
-
-            IList<IRouter> routers = (IList<IRouter>)context.Items["routers"];
-
-            // Maybe this isn't needed, will need to see once Landing Page Engine is implemented
-            foreach (var router in routers)
-                rc.RouteData.Routers.Add(router);
-                     
             try
-            {                
-                var t1 = _actionSelectionDecisionTree.Select(new Dictionary<string, object>
-                {
-                    { "controller" , "Home" },
-                    { "action" , "Get" },
-                    { "id" , 2 },
-                });
-                
-                // var filter = tree.DecisionTree.Select(rc.RouteData.Values);
-                var actionDescriptor = _actionSelector.SelectBestCandidate(rc, t1) as ControllerActionDescriptor;
+            {              
+                var rc = new RouteContext(context);            
+                rc.RouteData.Routers.Add(_router);
 
-                // Perhaps this isn't needed, do more testing to find out
-                // foreach (var kvp in actionDescriptor.RouteValues)
-                // {
-                //     if (!string.IsNullOrEmpty(kvp.Value))
-                //     {
-                //         rc.RouteData.Values[kvp.Key] = kvp.Value;
-                //     }
-                // }
+                await _router.RouteAsync(rc);
 
+                var values = rc.RouteData.Values;
+                if (values.ContainsKey("controller"))
+                    context.Items.Add("controller", values["controller"]);
+                if (values.ContainsKey("action"))
+                    context.Items.Add("action", values["action"]);
 
+                var candidates = _actionSelectionDecisionTree.Select(rc.RouteData.Values);                
+                var actionDescriptor = _actionSelector.SelectBestCandidate(rc, candidates) as ControllerActionDescriptor;
                 var actionMethodInfo = actionDescriptor.MethodInfo;
                 var controllerTypeInfo = actionDescriptor.ControllerTypeInfo;
 
@@ -94,19 +78,37 @@ namespace Handlebars.WebApi
                 // consider implementing some of the filter logic here, eg:
                 // output caching, as this will be needed for better donut performance
 
-                // try using a fresh "defaulthttpcontext" here instead so the headers don't overlap etc
-                var ac = new ActionContext(http, rc.RouteData, actionDescriptor);
-                // var ac = new ActionContext(context, rc.RouteData, actionDescriptor);
-                var controllerContext = new ControllerContext(ac);
+                var actionContext = new ActionContext(context, rc.RouteData, actionDescriptor);
+                var controllerContext = new ControllerContext(actionContext);
                 
                 var cacheEntry = _controllerActionInvokerCache.GetState(controllerContext);
                 var executor = cacheEntry.ActionMethodExecutor;
                 
                 var controller = _controllerFactory.CreateController(controllerContext);
 
+                var _arguments = new Dictionary<string, object>(executor.ActionParameters.Length, StringComparer.OrdinalIgnoreCase); 
+                foreach(var param in executor.ActionParameters)
+                {
+                    if (rc.RouteData.Values.ContainsKey(param.Name))
+                    {
+                        if (param.ParameterType == typeof(int))
+                            _arguments.Add(param.Name, Convert.ToInt32(rc.RouteData.Values[param.Name]));
+                        else if (param.ParameterType == typeof(long))
+                            _arguments.Add(param.Name, Convert.ToInt64(rc.RouteData.Values[param.Name]));
+                        else if (param.ParameterType == typeof(short))
+                            _arguments.Add(param.Name, Convert.ToInt16(rc.RouteData.Values[param.Name]));
+                        else 
+                            _arguments.Add(param.Name, rc.RouteData.Values[param.Name]);
+                    }
+                }
+
+                // Might need to copy and change this class locally, will see
+                // await _controllerArgumentBinder.BindArgumentsAsync(controllerContext, controller, _arguments);
+               
                 var arguments = ControllerActionExecutor.PrepareArguments(
-                    rc.RouteData.Values,
-                    executor);
+                    _arguments,
+                    executor
+                );
 
                 if (executor.IsTypeAssignableFromIActionResult)
                 {

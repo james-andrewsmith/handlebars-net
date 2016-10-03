@@ -418,6 +418,7 @@
     <Compile Include="HandlebarsFilter.cs" />
     <Compile Include="HandlebarsJsonFormatter.cs" />
     <Compile Include="HandlebarsMediaTypeFormatter.cs" />
+    <Compile Include="HandlebarsRouteMiddleware.cs" />
     <Compile Include="HttpUtility.cs" />
     <Compile Include="IRequestFormatter.cs" />
     <Compile Include="TemplateProvider\MapPath.cs" />
