@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net.Http;
+using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 
 namespace Handlebars.WebApi
 {
     public sealed class StandardRequestFormatter : IRequestFormatter
     {
-        public string GetContext(HttpRequestMessage request, object context)
+        public string GetContext(HttpRequest request, object context)
         {
             var o = new
             {
@@ -25,16 +25,16 @@ namespace Handlebars.WebApi
                 }, 
                 _request = new 
                 {
-                    host = request.RequestUri.Host,
-                    scheme = request.RequestUri.Scheme,
-                    path = request.RequestUri.AbsolutePath,
-                    query = request.RequestUri.Query,
-                    fqdn = request.RequestUri.Scheme + "://" + request.RequestUri.Host
+                    host = request.Host.Host,
+                    scheme = request.Scheme,
+                    path = request.Path.Value,
+                    query = request.QueryString.ToUriComponent(),
+                    fqdn = request.Scheme + "://" + request.Host.Host
                 },
                 _config = new 
                 {
                     engine = HandlebarsConfiguration.Instance.Engine,
-                    donut = request.Properties.ContainsKey("donut")
+                    donut = request.HttpContext.Items.ContainsKey("donut")
                 },
                 data = context
             };

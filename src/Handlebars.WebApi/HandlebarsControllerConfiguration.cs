@@ -1,17 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http.Formatting;
+using System.Linq; 
 using System.Net.Http.Headers;
 using System.Text;
-using System.Threading.Tasks;
-using System.Web.Http.Controllers;
+using System.Threading.Tasks; 
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.Formatters;
 
 
 namespace Handlebars.WebApi
 {
-    
-    public class HandlebarsFormatterAttribute : Attribute, IControllerConfiguration
+
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+    public class HandlebarsFormatterAttribute : Attribute, IResourceFilter
     {
 
         public static HandlebarsMediaTypeFormatter Formatter
@@ -35,22 +42,22 @@ namespace Handlebars.WebApi
             set;
         }
 
-        public void Initialize(HttpControllerSettings controllerSettings,
-                               HttpControllerDescriptor controllerDescriptor)
+        public void OnResourceExecuted(ResourceExecutedContext context)
         {
+        }
+
+        public void OnResourceExecuting(ResourceExecutingContext context)
+        {
+            
+            /*
             controllerSettings.Formatters.Remove(controllerSettings.Formatters.JsonFormatter);
             controllerSettings.Formatters.Insert(0, _formatter);
             controllerSettings.Formatters.Insert(1, _json);
 
             if (!string.IsNullOrEmpty(Area))
-                controllerDescriptor.Properties["hb-prefix"] = Area; 
-
-            // ensure we can control the media type via a querystring (for handlebars proxy)
-            // controllerSettings.Formatters
-            //                   .JsonFormatter
-            //                   .MediaTypeMappings
-            //                   .Add(new QueryStringMapping("x-format", "json", new MediaTypeHeaderValue("application/json")));
-
+                controllerDescriptor.Properties["hb-prefix"] = Area;
+            */
         }
+
     }
 }

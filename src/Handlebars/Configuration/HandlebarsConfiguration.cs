@@ -6,39 +6,16 @@ using System.Text;
 
 namespace Handlebars
 {
-    public sealed class HandlebarsConfiguration
+    public sealed class HandlebarsConfiguration 
     {
         
         private static HandlebarsConfiguration instance;
         public static HandlebarsConfiguration Instance
         {
             get { return instance; }
+            set { instance = value; }
         }
-
-        static HandlebarsConfiguration()
-        {
-            instance = new HandlebarsConfiguration();
-            instance.GetFromFile();
-        }
-
-        private void GetFromFile()
-        {
-
-            var oconfig = HandlebarsConfigurationHandler.Get();
-            if (oconfig == null)
-                throw new Exception("Handlebars section was not found in app/web.config");
-
-            instance.Engine = oconfig.Engine;
-            instance.BasePath = oconfig.BasePath;
-            instance.ScriptPath = oconfig.ScriptPath;
-            instance.TemplatePath = oconfig.TemplatePath;
-
-            instance.Include = new List<ScriptIncludeElement>();
-            foreach (ScriptIncludeElement inc in oconfig.Include)
-            {
-                instance.Include.Add(inc);
-            }
-        }
+         
 
         #region // Constructor //
         public HandlebarsConfiguration()

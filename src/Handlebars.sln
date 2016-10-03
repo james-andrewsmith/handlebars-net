@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Handlebars", "Handlebars\Handlebars.csproj", "{4E7A2E8F-3E86-42FF-BA45-B6269540A6D6}"
 EndProject
@@ -79,7 +79,6 @@ Global
 		{4E7A2E8F-3E86-42FF-BA45-B6269540A6D6}.teamcity|x86.ActiveCfg = Release|x86
 		{4E7A2E8F-3E86-42FF-BA45-B6269540A6D6}.teamcity|x86.Build.0 = Release|x86
 		{1AC9FA37-6F17-4345-8909-AAC5A1C65889}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1AC9FA37-6F17-4345-8909-AAC5A1C65889}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1AC9FA37-6F17-4345-8909-AAC5A1C65889}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
 		{1AC9FA37-6F17-4345-8909-AAC5A1C65889}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
 		{1AC9FA37-6F17-4345-8909-AAC5A1C65889}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -115,7 +114,6 @@ Global
 		{72ABCAC6-2FB6-4CD4-A5D8-B44E0785B914}.teamcity|x64.ActiveCfg = Release|Any CPU
 		{72ABCAC6-2FB6-4CD4-A5D8-B44E0785B914}.teamcity|x86.ActiveCfg = Release|Any CPU
 		{A09F7B96-1818-4962-9071-0BB317E5954A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A09F7B96-1818-4962-9071-0BB317E5954A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A09F7B96-1818-4962-9071-0BB317E5954A}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
 		{A09F7B96-1818-4962-9071-0BB317E5954A}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
 		{A09F7B96-1818-4962-9071-0BB317E5954A}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -132,7 +130,6 @@ Global
 		{A09F7B96-1818-4962-9071-0BB317E5954A}.teamcity|x64.ActiveCfg = Release|Any CPU
 		{A09F7B96-1818-4962-9071-0BB317E5954A}.teamcity|x86.ActiveCfg = Release|Any CPU
 		{16E13EE5-3A1F-451C-85E4-D558F0B8B4C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{16E13EE5-3A1F-451C-85E4-D558F0B8B4C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{16E13EE5-3A1F-451C-85E4-D558F0B8B4C0}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
 		{16E13EE5-3A1F-451C-85E4-D558F0B8B4C0}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
 		{16E13EE5-3A1F-451C-85E4-D558F0B8B4C0}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -188,7 +185,6 @@ Global
 		{C8B4A574-3E08-4523-8AA1-3F0E4BAC362B}.teamcity|x64.ActiveCfg = Release|Any CPU
 		{C8B4A574-3E08-4523-8AA1-3F0E4BAC362B}.teamcity|x86.ActiveCfg = Release|Any CPU
 		{453E631A-34AF-4652-A2A0-C1151B62DD1E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{453E631A-34AF-4652-A2A0-C1151B62DD1E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{453E631A-34AF-4652-A2A0-C1151B62DD1E}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
 		{453E631A-34AF-4652-A2A0-C1151B62DD1E}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
 		{453E631A-34AF-4652-A2A0-C1151B62DD1E}.Debug|x64.ActiveCfg = Debug|x64
@@ -205,7 +201,6 @@ Global
 		{453E631A-34AF-4652-A2A0-C1151B62DD1E}.teamcity|x64.ActiveCfg = Release|Any CPU
 		{453E631A-34AF-4652-A2A0-C1151B62DD1E}.teamcity|x86.ActiveCfg = Release|Any CPU
 		{6CA87550-15CD-4433-92FB-C4509186EC80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6CA87550-15CD-4433-92FB-C4509186EC80}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6CA87550-15CD-4433-92FB-C4509186EC80}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
 		{6CA87550-15CD-4433-92FB-C4509186EC80}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
 		{6CA87550-15CD-4433-92FB-C4509186EC80}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -222,7 +217,6 @@ Global
 		{6CA87550-15CD-4433-92FB-C4509186EC80}.teamcity|x64.ActiveCfg = Release|Any CPU
 		{6CA87550-15CD-4433-92FB-C4509186EC80}.teamcity|x86.ActiveCfg = Release|Any CPU
 		{46E745CF-7B14-4376-A2D4-D5C021D503A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{46E745CF-7B14-4376-A2D4-D5C021D503A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{46E745CF-7B14-4376-A2D4-D5C021D503A2}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
 		{46E745CF-7B14-4376-A2D4-D5C021D503A2}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
 		{46E745CF-7B14-4376-A2D4-D5C021D503A2}.Debug|x64.ActiveCfg = Debug|Any CPU

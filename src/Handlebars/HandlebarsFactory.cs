@@ -23,7 +23,7 @@ namespace Handlebars
                    .SingleInstance();             
 
             // requires resource loading
-            builder.RegisterAssemblyModules(Assembly.LoadFile(HandlebarsConfiguration.Instance.Engine + ".dll"));
+            // builder.RegisterAssemblyModules(Assembly.LoadFile(HandlebarsConfiguration.Instance.Engine + ".dll"));
 
             // requires engine and resource loading
             builder.RegisterType<DevelopmentHandlebarsTemplate>()

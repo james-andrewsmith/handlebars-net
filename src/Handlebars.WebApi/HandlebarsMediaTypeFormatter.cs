@@ -5,83 +5,78 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Http.Formatting;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Http;
-using System.Web.Http.Controllers; 
+
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Formatters;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Net.Http.Headers;
+
+using Microsoft.AspNetCore.Mvc.Internal;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Controllers;
+
 
 using Newtonsoft.Json;
 
 namespace Handlebars.WebApi
 {
-    public sealed class HandlebarsMediaTypeFormatter : MediaTypeFormatter
+    public sealed class HandlebarsMediaTypeFormatter : IOutputFormatter
     {
-        #region // Constructor //
-        public HandlebarsMediaTypeFormatter(HttpRouteCollection routes,
-                                            IHandlebarsTemplate template,
-                                            IRequestFormatter formatter) : this(new HttpConfiguration(routes), template, formatter)
-        {
-        }
+        #region // Constructor // 
 
-        public HandlebarsMediaTypeFormatter(HttpConfiguration config,
-                                            IHandlebarsTemplate template,
-                                            IRequestFormatter formatter)
+        public HandlebarsMediaTypeFormatter(IHandlebarsTemplate template,
+                                            IRequestFormatter formatter,
+                                            Lazy<HandlebarsActionExecutor> executor)
             : base()
         {            
             this._template = template;
-            this.SupportedMediaTypes.Add(new MediaTypeHeaderValue("text/html"));
             this._formatter = formatter;
-                        
-            config.Formatters.Insert(0, this);
-            _config = config;
-            _server = new HttpServer(config);
-            _client = new HttpMessageInvoker(_server);
+            this._executor = executor;  
         }
-        
-        public HandlebarsMediaTypeFormatter(HttpConfiguration config,
-                                            IHandlebarsTemplate template,
-                                            IRequestFormatter formatter,
-                                            HttpServer server, 
-                                            HttpMessageInvoker client, 
-                                            string view,
-                                            HttpRequestMessage request)
-        {
 
-            this._formatter = formatter;
-            this._template = template;
-            this._request = request;
-            this._server = server;
-            this._config = config;
-            this._client = client;
-            this._view = view;
-
-            this.SupportedMediaTypes.Add(new MediaTypeHeaderValue("text/html"));            
-        }
         #endregion
 
         #region // Dependency Injection //
-        private readonly HttpConfiguration _config;
-        private readonly IHandlebarsTemplate _template;
-        private readonly HttpServer _server;
-        private readonly HttpMessageInvoker _client;
-        private readonly IRequestFormatter _formatter;
-        private readonly HttpRequestMessage _request;
-        private readonly string _view;
+        private readonly Lazy<HandlebarsActionExecutor> _executor; 
+        private readonly IHandlebarsTemplate _template;  
+        private readonly IRequestFormatter _formatter; 
         #endregion
 
-        public override bool CanReadType(Type type)
+
+        public void Test(HttpContext httpContext, IRouter router, ActionSelector actionSelector)
         {
-            return false;
+            /*
+            httpContext.Features.Select<RoutingFeature>();
+
+            RouteContext context = new RouteContext(httpContext);
+            context.RouteData = new RouteData();
+
+            // context.RouteData.Values.Add("area", moduleContext.ModuleInfo.Name);
+            // context.RouteData.Values.Add("pageModuleId", moduleContext.PageModuleId);
+            context.RouteData.Values.Add("controller", "home");
+            context.RouteData.Values.Add("action", "get");
+            context.RouteData.PushState(router, null, null);
+
+            var actionDescriptor = actionSelector.SelectBestCandidate(conext, )
+            if (actionDescriptor == null)
+                throw new NullReferenceException("Action cannot be located, please check whether module has been installed properly");
+
+            var moduleActionContext = new ActionContext(actionContext.HttpContext, context.RouteData, actionDescriptor);
+
+            var invoker = moduleInvokerProvider.CreateInvoker(moduleActionContext, actionDescriptor as ControllerActionDescriptor);
+            var result = await invoker.InvokeAction() as ViewResult; null)
+            */
         }
 
-        public override bool CanWriteType(Type type)
-        {
-            if (typeof(HttpError) == type) 
-                return false;
 
+        public bool CanWriteResult(OutputFormatterCanWriteContext context)
+        { 
             return true;
         }
 
@@ -202,17 +197,40 @@ namespace Handlebars.WebApi
             return sb;
         }
 
-        public override async Task WriteToStreamAsync(Type type, object value, Stream stream, HttpContent content, TransportContext transportContext, CancellationToken cancellationToken)
+        public async Task WriteAsync(OutputFormatterWriteContext context)
         {
+            // 1. Get controller from route (with DI done)
+
+            // 2. Invoke action from controller 
+
+            // - Action can be raw object, does not need to apply type format,
+            //   as we can do that here
+
+            
+
+            // todo: optimise
+            var view = "";
+            view += context.HttpContext.Items["controller"];
+            view += "/";
+            view += context.HttpContext.Items["action"];
+
+
+            // if (actionDescriptor.ControllerDescriptor.Properties.ContainsKey("hb-prefix"))
+            //     view = (actionDescriptor.ControllerDescriptor.Properties["hb-prefix"] as string) + "/" + view;
+
+            // context.ObjectType.
+            if (context.HttpContext.Items.ContainsKey("hb-view"))
+                view = context.HttpContext.Items["hb-view"] as string;
+
             // await Console.Out.WriteLineAsync("HB Started: " + Request.RequestUri.PathAndQuery);
-            var json = _formatter.GetContext(_request, value);
-            string r = _template.Render(_view, json);
+            var json = _formatter.GetContext(context.HttpContext.Request, context.Object);
+            // string r = _template.Render(view, json);
+            string r = "test";
             
             StringBuilder html;
 
-
-            if (_request.Properties.ContainsKey("donut") &&
-                (bool)_request.Properties["donut"] == true)
+            if (context.HttpContext.Items.ContainsKey("donut") &&
+                (bool)context.HttpContext.Items["donut"] == true)
             {
                 // detect any master or sections and fill them
                 html = new StringBuilder(r);
@@ -223,20 +241,38 @@ namespace Handlebars.WebApi
 
                 // if there is an outputcache property here, then provide some HTML
                 // to be output cached. Minus the donut data of course
-                if (_request.Properties.ContainsKey("outputcache:key"))
-                    _request.Properties.Add("outputcache:content", html.ToString());
+                if (context.HttpContext.Items.ContainsKey("outputcache:key"))
+                    context.HttpContext.Items.Add("outputcache:content", html.ToString());
 
-                html = await FillDonutData(html, _request);
-            }             
-              
-            // Console.Out.WriteLineAsync("HandlebarsMediaTypeFormatter: Replace() " + sw.ElapsedMilliseconds + "ms");
-            
-                
-            // await writer.WriteAsync(html.ToString());
-            var writer = new StreamWriter(stream);
+                html = await FillDonutData(html, context.HttpContext.Request);
+            }
+
+            // Console.Out.WriteLineAsync("HandlebarsMediaTypeFormatter: Replace() " + sw.ElapsedMilliseconds + "ms");                           
+            // await writer.WriteAsync(html.ToString()); 
+
+            // - Needs to support ANY url
+            if (context.HttpContext.Request.Path.Value.EndsWith("/1"))
+            {
+                // copy revevant details to new context
+                var dc = new DefaultHttpContext(context.HttpContext.Features);
+                foreach (var header in context.HttpContext.Request.Headers)
+                    dc.Request.Headers[header.Key] = header.Value;
+
+                dc.Request.Path = "/api/home/2";
+                dc.User = context.HttpContext.User;
+
+                IActionResult test = await _executor.Value.ExecuteAsync(context.HttpContext);
+                if (test is OkObjectResult) {
+                    var ok = ((OkObjectResult)test);
+                    var j = _formatter.GetContext(context.HttpContext.Request, ok.Value);
+                    // string re = _template.Render(view, j);
+                    // html.AppendLine(re);
+                }
+            }
+
 
             string output, contentType;
-            if (_request.Properties.ContainsKey("hb-as-javascript"))
+            if (context.HttpContext.Items.ContainsKey("hb-as-javascript"))
             {
                 var lines = html.ToString()
                                 .Split(new[] { "\n\r", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
@@ -257,14 +293,16 @@ namespace Handlebars.WebApi
                 output = html.ToString();
             }
 
-            content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+            context.HttpContext.Response.ContentType = contentType;
 
-            await writer.WriteAsync(output);
-            await writer.FlushAsync();
-            return;            
+            using (var writer = context.WriterFactory(context.HttpContext.Response.Body, Encoding.UTF8))
+            {
+                await writer.WriteAsync(output);
+                await writer.FlushAsync();
+            }
         }
 
-        public async Task<StringBuilder> FillDonutData(StringBuilder html, HttpRequestMessage original)
+        public async Task<StringBuilder> FillDonutData(StringBuilder html, HttpRequest original)
         {
             var donuts = new Dictionary<string, SectionData>();
             
@@ -311,8 +349,6 @@ namespace Handlebars.WebApi
                         html.Insert(kvp.Value.Start, content[kvp.Key]);
                     }
                 }
-
-
             }            
             
             return html;
@@ -334,42 +370,44 @@ namespace Handlebars.WebApi
              
         }
 
-        private async Task<DonutResult> ExecuteDonut(HttpRequestMessage original, string donut)
+        private async Task<DonutResult> ExecuteDonut(HttpRequest original, string donut)
         {
             var result = new DonutResult
             {
                 Donut = donut
             };
-            
-            using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://" + original.RequestUri.DnsSafeHost + (original.RequestUri.IsDefaultPort ? "" : ":" + original.RequestUri.Port) + "/" + donut))
+
+            // "http://" + original.Host.Host + (original.Host.Port == 80 ? "" : ":" + original.Host.Port) + 
+            using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "/" + donut))
             {
                 request.Properties.Add("donut", true);
 
                 // ensure any AB testing in donut actions uses the same grouping
-                if (original.Properties.ContainsKey("experiment"))
-                    request.Properties.Add("experiment", original.Properties["experiment"]);
+                if (original.HttpContext.Items.ContainsKey("experiment"))
+                    request.Properties.Add("experiment", original.HttpContext.Items["experiment"]);
 
                 // so we can use the same identify and context information in higher up 
                 // donut functions.
-                if (original.Properties.ContainsKey("MS_OwinContext"))
-                    request.Properties.Add("MS_OwinContext", original.Properties["MS_OwinContext"]);
+                if (original.HttpContext.Items.ContainsKey("MS_OwinContext"))
+                    request.Properties.Add("MS_OwinContext", original.HttpContext.Items["MS_OwinContext"]);
 
                 // temp: try catch to debug "bad headers"
                 foreach (var header in original.Headers)
                 {
                     try
                     {
-                        request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                        request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToString());
                     }
                     catch (Exception e)
                     {
-                        Console.Out.WriteLineAsync("Handlebars - Add Header: " + e.Message);
+                        Console.Out.WriteLine("Handlebars - Add Header: " + e.Message);
                     }
                 }
 
                 // this was previously causing a deadlock, never use .Result!!!! it is the 
                 // root of all things evil.
-                using (HttpResponseMessage response = await _client.SendAsync(request, CancellationToken.None))
+                /*
+                using (HttpResponseMessage response = await _client.Value.SendAsync(request, CancellationToken.None))
                 {
                     if (response.IsSuccessStatusCode)
                     {
@@ -383,12 +421,13 @@ namespace Handlebars.WebApi
                             result.Content = exp.Message;
                         }
                     }
-                }
+                }*/
             }
             
             return result;
         }
 
+        /*
         public override MediaTypeFormatter GetPerRequestFormatterInstance(Type type, HttpRequestMessage request, MediaTypeHeaderValue mediaType)
         {
             HttpActionDescriptor actionDescriptor = request.GetActionDescriptor();
@@ -407,7 +446,7 @@ namespace Handlebars.WebApi
 
             return new HandlebarsMediaTypeFormatter(_config, _template, _formatter, _server, _client, view, request);
 
-        }
+        }*/
         
     }
 }
