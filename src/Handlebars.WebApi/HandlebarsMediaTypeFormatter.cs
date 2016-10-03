@@ -171,36 +171,29 @@ namespace Handlebars.WebApi
          
         private string GetView(HttpContext context)
         {
-            // todo: optimise
-            var view = "";
-
-            if (context.Items.ContainsKey("hb-view"))
-                return context.Items["hb-view"] as string;
-
-            view += context.Items["controller"];
-            view += "/";
-            view += context.Items["action"];
-
+            // todo: 
+            // Check if any controllers need/use the hb-prefix (if not remove this)
             // if (actionDescriptor.ControllerDescriptor.Properties.ContainsKey("hb-prefix"))
             //     view = (actionDescriptor.ControllerDescriptor.Properties["hb-prefix"] as string) + "/" + view;
 
-            // context.ObjectType.
-
-            return view;
+            if (context.Items.ContainsKey("hb-view"))
+                return context.Items["hb-view"] as string;
+            else if (context.Items.ContainsKey("controller") &&
+                context.Items.ContainsKey("action"))
+                return $"{context.Items["controller"]}/{context.Items["action"]}";
+            else if (context.Items.ContainsKey("controller"))
+                return $"{context.Items["controller"]}";
+            else if (context.Items.ContainsKey("action"))
+                return $"{context.Items["action"]}";
+            else
+                return context.Request.Path.Value.ToLower();            
         }
 
         public async Task WriteAsync(OutputFormatterWriteContext context)
         {
-            // 1. Get controller from route (with DI done)
-
-            // 2. Invoke action from controller 
-
-            // - Action can be raw object, does not need to apply type format,
-            //   as we can do that here
-
+            // Get the view template 
             var view = GetView(context.HttpContext);             
             var json = _formatter.GetContext(context.HttpContext.Request, context.Object);
-
             string render = _template.Render(view, json);            
             StringBuilder html = new StringBuilder(render);
 
@@ -213,10 +206,9 @@ namespace Handlebars.WebApi
                 // hooks for adding to output cache
                    
                 // While playing with sections comment this out
-                // html = await FillDonutData(html, context.HttpContext.Request);
+                html = await FillDonutData(html, context.HttpContext.Request);
             }
           
-
             string output, contentType;
 
             // Allow output to render as javascript inside a document.write
@@ -243,6 +235,7 @@ namespace Handlebars.WebApi
 
             context.HttpContext.Response.ContentType = contentType;
 
+            // Buffer to the client and dispose all streams etc
             using (var writer = context.WriterFactory(context.HttpContext.Response.Body, Encoding.UTF8))
             {
                 await writer.WriteAsync(output);
