@@ -46,42 +46,13 @@ namespace Handlebars.WebApi
         private readonly IHandlebarsTemplate _template;  
         private readonly IRequestFormatter _formatter; 
         #endregion
-
-
-        public void Test(HttpContext httpContext, IRouter router, ActionSelector actionSelector)
-        {
-            /*
-            httpContext.Features.Select<RoutingFeature>();
-
-            RouteContext context = new RouteContext(httpContext);
-            context.RouteData = new RouteData();
-
-            // context.RouteData.Values.Add("area", moduleContext.ModuleInfo.Name);
-            // context.RouteData.Values.Add("pageModuleId", moduleContext.PageModuleId);
-            context.RouteData.Values.Add("controller", "home");
-            context.RouteData.Values.Add("action", "get");
-            context.RouteData.PushState(router, null, null);
-
-            var actionDescriptor = actionSelector.SelectBestCandidate(conext, )
-            if (actionDescriptor == null)
-                throw new NullReferenceException("Action cannot be located, please check whether module has been installed properly");
-
-            var moduleActionContext = new ActionContext(actionContext.HttpContext, context.RouteData, actionDescriptor);
-
-            var invoker = moduleInvokerProvider.CreateInvoker(moduleActionContext, actionDescriptor as ControllerActionDescriptor);
-            var result = await invoker.InvokeAction() as ViewResult; null)
-            */
-        }
-
+         
 
         public bool CanWriteResult(OutputFormatterCanWriteContext context)
         { 
             return true;
         }
-
-        private static readonly Regex MasterRegex = new Regex(@"(####master:(.+)####)", RegexOptions.IgnoreCase);
-        private static readonly Regex SectionRegex = new Regex(@"(<!--####section:(.+)####-->)", RegexOptions.IgnoreCase);
-
+         
         private class SectionData
         {
             public string Key
@@ -115,112 +86,89 @@ namespace Handlebars.WebApi
             }
         }
 
-        public StringBuilder FillSectionData(string contents, string json)
+        public StringBuilder FillSectionData(StringBuilder html, string json)
         {
-            var sectionMatches = SectionRegex.Matches(contents);
-            var sections = new Dictionary<string, SectionData>();
-             
-            foreach (Match match in sectionMatches)
+            // detect the master section tag 
+            int masterIndex = html.IndexOf("####master:", 0, false);
+
+            // when it's not present this means there will be no 
+            // section replacement, so just return the html
+            if (masterIndex == -1)
+                return html;
+
+            // Examples:
+            // ####master:default.handlebars####
+            // ####master:default-oembed.handlebars####
+            int masterIndexFinish = html.IndexOf("####", masterIndex + 11, false);
+            string masterPath = html.ToString(masterIndex + 11, masterIndexFinish - masterIndex - 11);
+            string masterHtml = _template.Render(masterPath, json);
+
+            // Remove the master tag from view
+            html.Remove(masterIndex, masterIndexFinish + 4);
+
+            var master = new StringBuilder(masterHtml);
+            var sections = new List<SectionData>();
+
+            // Find each section the master template
+            // Example: 
+            // <!--####section:start:head####-->
+            // <!--####section:stop:head####-->
+
+            SectionData section = new SectionData();
+            int index = master.IndexOf("<!--####section:start:", 0, false);
+            int length = 4;
+            while (index != -1)
             {
-                // extract the matched sections into variables 
-                var sectionData = match.Value.Split(':');
-                var operation = sectionData[1];
-                var name = sectionData[2].TrimEnd('#', '-', '>');
+                length = master.IndexOf("####-->", index + 22, false) - index - 22;
+                var key = master.ToString(index + 22, length);
 
-                if (!sections.ContainsKey(name))
-                    sections.Add(name, new SectionData() { NameLength = name.Length });
-
-                switch (operation)
+                section.Key = key;
+                section.Start = index;
+                section.NameLength = length;
+                section.Stop = index + length + 29;
+                
+                // Find the section start / finish in view template                
+                var contentStart = html.IndexOf($"<!--####section:start:{section.Key}####-->", 0, false);
+                if (contentStart > -1)
                 {
-                    case "start":
-                        sections[name].Start = match.Index + match.Length;
-                        break;
-                    case "stop":
-                        sections[name].Stop = match.Index;
-                        sections[name].Contents = contents.Substring(sections[name].Start, sections[name].Stop - sections[name].Start).Trim(' ', '\n', '\t', '\r');
-                        break;
+                    var contentStop = html.IndexOf($"<!--####section:stop:{section.Key}####-->", contentStart, false);
+                    section.Contents = html.ToString(contentStart, contentStop - contentStart + length + 28) + "\n";
+
+                    // remove the section from the html, this allows the content section 
+                    // to not declare itself (or be lazy), lower we assume any remaining 
+                    // content to be part of the content section 
+                    html.Remove(contentStart, contentStop - contentStart + length + 28);
                 }
+
+                sections.Add(section);
+
+                if (index + length > master.Length) break;
+                section = new SectionData();
+                index = master.IndexOf("<!--####section:start:", index + length, false);
             }
 
-            // find the master for this template
-            // ###master            
-            // todo:
-            // return an HTML error describing the missing
-            var masterMatch = MasterRegex.Match(contents, 0);
-            if (!masterMatch.Success)
-                return new StringBuilder(contents, contents.Length * 2);
-
-            var removal = sections.Values.OrderByDescending(_ => _.Stop);
-            foreach (SectionData sd in removal)
+            // Go backwards through the sections 
+            for (int i = sections.Count; i > 0; i--)
             {
-                // <!--####section:start:####-->
-                // <!--####section:stop:####-->
-                int start = sd.Start - sd.NameLength - 29;
-                int stop = sd.Stop + sd.NameLength + 28;
-                contents = contents.Remove(start, stop - start);
-            }
-
-            // remove the master tag from the render pipeline
-            contents = contents.Remove(masterMatch.Index, masterMatch.Length);
-
-            // this logic is only needed if there is a master template with sections
-            // any content not in a section will be automatically assumed as the 
-            // "content" section and appended to it (if it was already created)
-            if (!sections.ContainsKey("contents"))
-            {
-                sections.Add("contents", new SectionData { });
-                sections["contents"].Contents = contents.Trim(' ', '\n', '\t', '\r');
-            }
-
-            var masterPath = masterMatch.Value.Split(':')[1].TrimEnd('#');
-            string master = _template.Render(masterPath, json);
-
-            // recycle variable for efficiency
-            sectionMatches = SectionRegex.Matches(master);
-
-            // foreach section in the master, 
-            // replace the section with the contents from the template
-            // if the sections don't exist then leave them because there
-            // might be default content
-
-            var masterSections = new Dictionary<string, SectionData>();
-            foreach (Match match in sectionMatches)
-            {
-                // extract the matched sections into variables
-                var sectionData = match.Value.Split(':');
-                var operation = sectionData[1];
-                var name = sectionData[2].TrimEnd('#', '-', '>'); 
-
-                if (!masterSections.ContainsKey(name))
-                    masterSections.Add(name, new SectionData() { NameLength = name.Length });
-
-                switch (operation)
+                var kvp = sections[i - 1];
+                
+                // Ensure the contents section can be found (even when no tags are used)
+                if (string.Equals(kvp.Key, "contents", StringComparison.OrdinalIgnoreCase) && 
+                    string.IsNullOrEmpty(kvp.Contents))
                 {
-                    case "start":
-                        masterSections[name].Start = match.Index + match.Length;
-                        break;
-                    case "stop":
-                        masterSections[name].Stop = match.Index;
-                        break;
-                }
+                    // because we have been calling "remove" on the html string builder 
+                    // we can assume whatever is left to be the "contents" tag
+                    kvp.Contents = html.ToString();
+                }                
+
+                // Insert the sections from the view template into the master
+                master.Remove(kvp.Start, kvp.Stop - kvp.Start + kvp.NameLength + 29);
+                master.Insert(kvp.Start, kvp.Contents);
             }
 
-            // use a pesamistic estimate for the length of the string builder (considering we might get donuts later
-            var sb = new StringBuilder(master, (master.Length + sections.Sum(_ => _.Value.Contents.Length)) * 2);
-
-            var replacement = masterSections.OrderByDescending(_ => _.Value.Stop);
-            foreach (KeyValuePair<string, SectionData> kvp in replacement)
-            {
-                if (sections.ContainsKey(kvp.Key))
-                {                    
-                    sb.Remove(masterSections[kvp.Key].Start, masterSections[kvp.Key].Stop - masterSections[kvp.Key].Start);
-                    sb.Insert(masterSections[kvp.Key].Start, "\n" + sections[kvp.Key].Contents + "\n");
-                }
-            }
-
-            return sb;
+            return master;
         }
-
+         
         private string GetView(HttpContext context)
         {
             // todo: optimise
@@ -252,28 +200,26 @@ namespace Handlebars.WebApi
 
             var view = GetView(context.HttpContext);             
             var json = _formatter.GetContext(context.HttpContext.Request, context.Object);
-            string r = _template.Render(view, json);
-            
-            StringBuilder html;
 
-            if (context.HttpContext.Items.ContainsKey("donut"))
+            string render = _template.Render(view, json);            
+            StringBuilder html = new StringBuilder(render);
+
+            // prevent nested donuts
+            if (!context.HttpContext.Items.ContainsKey("donut"))
             {
-                // detect any master or sections and fill them
-                html = new StringBuilder(r);
-            }
-            else
-            {
-                html = FillSectionData(r, json);
+                html = FillSectionData(html, json);
                 
                 // todo:
                 // hooks for adding to output cache
-                                
-                html = await FillDonutData(html, context.HttpContext.Request);
+                   
+                // While playing with sections comment this out
+                // html = await FillDonutData(html, context.HttpContext.Request);
             }
           
 
-
             string output, contentType;
+
+            // Allow output to render as javascript inside a document.write
             if (context.HttpContext.Items.ContainsKey("hb-as-javascript"))
             {
                 var lines = html.ToString()
