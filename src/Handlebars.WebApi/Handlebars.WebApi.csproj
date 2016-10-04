@@ -410,17 +410,28 @@
       <HintPath>..\packages\System.Xml.XPath.XDocument.4.0.1\lib\net46\System.Xml.XPath.XDocument.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Wire, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\..\ReportGuroo\report\ReportGuroo.Host\packages\Wire.0.8.1\lib\net45\Wire.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Caching\DefaultCacheStore.cs" />
+    <Compile Include="Caching\DefaultCacheKeyProvider.cs" />
+    <Compile Include="Caching\IEtagCacheStore.cs" />
+    <Compile Include="Caching\IOutputCacheStore.cs" />
     <Compile Include="HandlebarsActionExecution.cs" />
     <Compile Include="HandlebarsActionSelector.cs" />
     <Compile Include="HandlebarsControllerConfiguration.cs" />
-    <Compile Include="HandlebarsFilter.cs" />
+    <Compile Include="Caching\HandlebarsCache.cs" />
     <Compile Include="HandlebarsJsonFormatter.cs" />
     <Compile Include="HandlebarsMediaTypeFormatter.cs" />
+    <Compile Include="Caching\OutputCacheItem.cs" />
     <Compile Include="HandlebarsRouteMiddleware.cs" />
     <Compile Include="HttpUtility.cs" />
+    <Compile Include="Caching\ICacheKeyProvider.cs" />
     <Compile Include="IRequestFormatter.cs" />
+    <Compile Include="SectionData.cs" />
     <Compile Include="TemplateProvider\MapPath.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StandardRequestFormatter.cs" />
@@ -438,9 +449,7 @@
     </None>
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Caching\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Analyzer Include="..\packages\Microsoft.CodeAnalysis.Analyzers.1.1.0\analyzers\dotnet\cs\Microsoft.CodeAnalysis.Analyzers.dll" />
     <Analyzer Include="..\packages\Microsoft.CodeAnalysis.Analyzers.1.1.0\analyzers\dotnet\cs\Microsoft.CodeAnalysis.CSharp.Analyzers.dll" />

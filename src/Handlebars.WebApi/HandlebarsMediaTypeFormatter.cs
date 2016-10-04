@@ -22,6 +22,7 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 
 
 using Newtonsoft.Json;
+using Wire;
 
 namespace Handlebars.WebApi
 {
@@ -31,12 +32,25 @@ namespace Handlebars.WebApi
 
         public HandlebarsMediaTypeFormatter(IHandlebarsTemplate template,
                                             IRequestFormatter formatter,
-                                            Lazy<HandlebarsActionExecutor> executor)
+                                            Lazy<HandlebarsActionExecutor> executor,
+                                            IStoreOutputCache storeOutput)
             : base()
         {            
             this._template = template;
             this._formatter = formatter;
-            this._executor = executor;  
+            this._executor = executor;
+            this._storeOutput = storeOutput;
+
+
+            // Setup Wire for fastest performance
+            var types = new[] {
+                    typeof(OutputCacheItem),
+                    typeof(SectionData)
+                };
+
+            this._serializer = new Serializer(new SerializerOptions(knownTypes: types));
+            this._ss = _serializer.GetSerializerSession();
+            this._ds = _serializer.GetDeserializerSession();
         }
 
         #endregion
@@ -44,47 +58,19 @@ namespace Handlebars.WebApi
         #region // Dependency Injection //
         private readonly Lazy<HandlebarsActionExecutor> _executor; 
         private readonly IHandlebarsTemplate _template;  
-        private readonly IRequestFormatter _formatter; 
+        private readonly IRequestFormatter _formatter;
+        private readonly IStoreOutputCache _storeOutput;
+
+        private readonly Serializer _serializer;
+        private readonly SerializerSession _ss;
+        private readonly DeserializerSession _ds;
         #endregion
-         
+
 
         public bool CanWriteResult(OutputFormatterCanWriteContext context)
         { 
             return true;
-        }
-         
-        private class SectionData
-        {
-            public string Key
-            {
-                get;
-                set;
-            }
-
-            public int NameLength
-            {
-                get;
-                set;
-            }
-
-            public int Start
-            {
-                get;
-                set;
-            }
-
-            public int Stop
-            {
-                get;
-                set;
-            }
-
-            public string Contents
-            {
-                get;
-                set;
-            }
-        }
+        }         
 
         public StringBuilder FillSectionData(StringBuilder html, string json)
         {
@@ -169,7 +155,7 @@ namespace Handlebars.WebApi
             return master;
         }
          
-        private string GetView(HttpContext context)
+        internal static string GetView(HttpContext context)
         {
             // todo: 
             // Check if any controllers need/use the hb-prefix (if not remove this)
@@ -201,12 +187,14 @@ namespace Handlebars.WebApi
             if (!context.HttpContext.Items.ContainsKey("donut"))
             {
                 html = FillSectionData(html, json);
-                
+
                 // todo:
                 // hooks for adding to output cache
+                if (context.HttpContext.Items.ContainsKey("cache"))
+                    context.HttpContext.Items["cache"] = html.ToString();
                    
                 // While playing with sections comment this out
-                html = await FillDonutData(html, context.HttpContext.Request);
+                html = await FillDonutData(html, context.HttpContext);
             }
           
             string output, contentType;
@@ -243,8 +231,9 @@ namespace Handlebars.WebApi
             }
         }
 
-        public async Task<StringBuilder> FillDonutData(StringBuilder html, HttpRequest original)
+        public async Task<StringBuilder> FillDonutData(StringBuilder html, HttpContext context)
         {
+            HttpRequest original = context.Request;
             var donuts = new List<SectionData>();
             
             // detect the donuts
@@ -270,9 +259,14 @@ namespace Handlebars.WebApi
             // execute any donuts
             if (donuts.Count > 0)
             {
+                // Cache the donut meta data with the template, 
+                // this allows the output cache to execute donuts
+                // directly and not perform any text scans
+                if (context.Items.ContainsKey("cache"))
+                    context.Items["cache-donut"] = donuts;
+
                 // move backwards through the donuts 
-                
-                for(int i = donuts.Count; i > 0; i--)
+                for (int i = donuts.Count; i > 0; i--)
                 {
                     var kvp = donuts[i - 1];
 
@@ -294,17 +288,50 @@ namespace Handlebars.WebApi
                     http.User = original.HttpContext.User;
 
                     IActionResult result = await _executor.Value.ExecuteAsync(http, url);
+
                     string value = $"<!-- {kvp.Key} -->";
+                    string contentType = "text/html";
+                    int statusCode = 200;
 
-                    var view = GetView(http);
-
-                    if (result is OkObjectResult)
+                    // Check for a response which is from the cache
+                    if (result is ContentResult)
                     {
-                        var ok = ((OkObjectResult)result);                        
-                        var j = _formatter.GetContext(http.Request, ok.Value);
-                        value = _template.Render(view, j);                        
+                        var cr = ((ContentResult)result);
+                        value = cr.Content;
+                        statusCode = cr.StatusCode == null ? 200 : (int)cr.StatusCode;
+                        contentType = cr.ContentType;                        
+                    }
+                    else
+                    {
+                        var view = GetView(http);
+                        if (result is OkObjectResult)
+                        {
+                            var ok = ((OkObjectResult)result);
+                            var j = _formatter.GetContext(http.Request, ok.Value);
+                            value = _template.Render(view, j);
+                            statusCode = ok.StatusCode == null ? 200 : (int)ok.StatusCode;
+                            contentType = "text/html";
+                        }                        
                     }
 
+                    // We know this wasn't from a cache hit, so add this to the cache
+                    if (!http.Items.ContainsKey("cache-hit") &&
+                        http.Items.ContainsKey("cache-key"))
+                    {
+                        using (var ms = new MemoryStream())
+                        {
+                            _serializer.Serialize(new OutputCacheItem
+                            {
+                                ContentType = contentType,
+                                StatusCode = statusCode,
+                                Content = value
+                            }, ms, _ss);
+
+                            await _storeOutput.Set(Convert.ToString(http.Items["cache-key"]), ms.ToArray());
+                        }
+                    }
+
+                    // Fill the donut hole using stringbuilder
                     html.Remove(kvp.Start, kvp.Stop - kvp.Start);
                     html.Insert(kvp.Start, value);
                 }                 
