@@ -15,7 +15,7 @@ using Wire;
 
 namespace Handlebars.WebApi
 {
-    public class SampleAsyncActionFilter : IAsyncActionFilter
+    public class HandlebarsHelperActionFilter : IAsyncActionFilter
     {
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
@@ -26,26 +26,28 @@ namespace Handlebars.WebApi
                 context.HttpContext.Items.Add("controller", values["controller"]);
             if (values.ContainsKey("action"))
                 context.HttpContext.Items.Add("action", values["action"]);
+            
 
-            await System.Console.Out.WriteLineAsync("AsyncActionFilter: " + context.HttpContext.Request.Path.Value);
 
             // do something before the action executes
             await next();
             // do something after the action executes
-            
-
+           
         }
     }
      
      
 
-    public class HandlebarsCache : Attribute, IFilterFactory  
+    public class CacheControl : Attribute, IFilterFactory  
     {
 
         #region // IFilterFactory //
         public IFilterMetadata CreateInstance(IServiceProvider serviceProvider)
-        {
-            Console.WriteLine("OutputCache CreateInstance");
+        { 
+            // todo:
+            // - right here implement the profile defaults, preventing logic from 
+            //   being part of the request pipeline
+
             return new OutputCacheFilter(
                 serviceProvider.GetService<IHandlebarsTemplate>(),
                 serviceProvider.GetService<IRequestFormatter>(),
@@ -53,7 +55,7 @@ namespace Handlebars.WebApi
                 serviceProvider.GetService<ICacheKeyProvider>(),
                 serviceProvider.GetService<IStoreEtagCache>(),
                 serviceProvider.GetService<IStoreOutputCache>(),
-                this.BuildKeyWith
+                this.BuildHashWith
             );
         }
 
@@ -66,7 +68,34 @@ namespace Handlebars.WebApi
 
         #region // Attribute Properties //
 
+        /// <summary>
+        /// The name of the default settings to use, which will pre
+        /// </summary>
+        public string Profile
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// How long should items remain in the etag or output cache
+        /// </summary>
         public int Duration
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Set the output duration for how long an item will remain in the cache
+        /// </summary>
+        public int OutputDuration
+        {
+            get;
+            set;
+        }
+
+        public int EtagDuration
         {
             get;
             set;
@@ -82,7 +111,25 @@ namespace Handlebars.WebApi
         }
 
         /// <summary>
-        /// Vary the cache entries by the following querystring items
+        /// Process etags in the request header
+        /// </summary>
+        public bool CacheEtag
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Keep the output of the response in a store
+        /// </summary>
+        public bool CacheOutput
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Vary the cache key in the store by the following Request.QueryString items
         /// </summary>
         public string[] VaryByQuery
         {
@@ -91,10 +138,41 @@ namespace Handlebars.WebApi
         }
 
         /// <summary>
-        /// By using integers and constants this system will work with attributes and 
-        /// will also be easy to implement logic around with dependency injection 
+        /// Vary the cache key in the store by the following RouteData items
         /// </summary>
-        public int[] BuildKeyWith
+        public string[] VaryByRoute
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Vary the cache key in the store by the following HttpContext.Items
+        /// </summary>
+        public string[] VaryByItem
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Vary the cache key in the store by the Request.HttpContext.User 
+        /// (anonymous is stored as <null>)
+        /// </summary>
+        public bool VaryByUser
+        {
+            get;
+            set;
+        }
+
+
+        /// <summary>
+        /// The hash is used both as an etag and as a method to determine if the 
+        /// output cache is still fresh or has gone stale, the integers are 
+        /// passed to an application specific service which uses them to build
+        /// a collection of strings represent the state of objects to be hashed.
+        /// </summary>
+        public int[] BuildHashWith
         {
             get;
             set;
@@ -161,7 +239,7 @@ namespace Handlebars.WebApi
                 // todo:
                 // - allow API resposes to be output cached
                 // - allow x-format=json responses to be output cached 
-
+                
                 var cacheKey = await _keyProvider.GetKey(context.HttpContext, _buildKeyWith);
                 
                 var cachedValue = await _storeOutput.Get(cacheKey);

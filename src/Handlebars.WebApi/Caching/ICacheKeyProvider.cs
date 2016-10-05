@@ -11,5 +11,7 @@ namespace Handlebars.WebApi
     public interface ICacheKeyProvider
     {
         Task<string> GetKey(HttpContext context, int[] buildKeyWith);
+
+        Task<string[]> GetKeyValue(HttpContext context, int[] hashOf);
     }
 }

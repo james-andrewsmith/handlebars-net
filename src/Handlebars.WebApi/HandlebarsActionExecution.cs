@@ -96,15 +96,15 @@ namespace Handlebars.WebApi
                                
                 // Find the output cache filter
                 var caching = actionDescriptor.FilterDescriptors
-                                              .Where(_ => _.Filter is HandlebarsCache)
+                                              .Where(_ => _.Filter is CacheControl)
                                               .FirstOrDefault();
                 string key;
                 if (caching != null)
                 {
-                    var filter = caching.Filter as HandlebarsCache;
+                    var filter = caching.Filter as CacheControl;
 
                     // Get the key
-                    key = await _keyProvider.GetKey(context, filter.BuildKeyWith);                    
+                    key = await _keyProvider.GetKey(context, filter.BuildHashWith);                    
 
                     // Return the cached response if it exists
                     var cachedValue = await _storeOutput.Get(key);
@@ -171,14 +171,13 @@ namespace Handlebars.WebApi
                 {
                     if (executor.IsMethodAsync)
                     {
-                        return  (IActionResult)await executor.ExecuteAsync(controller, arguments);
+                        return (IActionResult)await executor.ExecuteAsync(controller, arguments);
                     }
                     else
                     {                        
                         return (IActionResult)executor.Execute(controller, arguments);
                     }
-
-                }
+                } 
 
                 throw new NotImplementedException();
 
