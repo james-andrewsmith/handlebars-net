@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Routing;
 
 using Microsoft.Extensions.Logging;
 
@@ -66,8 +67,13 @@ namespace Handlebars.WebApi
 
 
         public bool CanWriteResult(OutputFormatterCanWriteContext context)
-        { 
-            return true;
+        {                        
+            if (context is OutputFormatterWriteContext)
+            {
+                var writeContext = context as OutputFormatterWriteContext;
+                return writeContext.HttpContext.Items.ContainsKey("formatter");
+            }
+            return false;
         }         
 
         public StringBuilder FillSectionData(StringBuilder html, string json)
@@ -161,16 +167,25 @@ namespace Handlebars.WebApi
             //     view = (actionDescriptor.ControllerDescriptor.Properties["hb-prefix"] as string) + "/" + view;
 
             if (context.Items.ContainsKey("hb-view"))
+            {
                 return context.Items["hb-view"] as string;
-            else if (context.Items.ContainsKey("controller") &&
-                context.Items.ContainsKey("action"))
-                return $"{context.Items["controller"]}/{context.Items["action"]}";
-            else if (context.Items.ContainsKey("controller"))
-                return $"{context.Items["controller"]}";
-            else if (context.Items.ContainsKey("action"))
-                return $"{context.Items["action"]}";
+            }
             else
-                return context.Request.Path.Value.ToLower();            
+            {
+                var prefix = context.Items.ContainsKey("hb-area") ? $"{context.Items["hb-area"]}/" : string.Empty;                                                                
+                var routing = context.Features.Get<IRoutingFeature>();
+                var routeData = routing.RouteData.Values;
+
+                if (routeData.ContainsKey("controller") &&
+                    routeData.ContainsKey("action"))
+                    return $"{prefix}{routeData["controller"]}/{routeData["action"]}";
+                else if (routeData.ContainsKey("controller"))
+                    return $"{prefix}{routeData["controller"]}";
+                else if (routeData.ContainsKey("action"))
+                    return $"{prefix}{routeData["action"]}";
+                else
+                    return $"{prefix}{context.Request.Path.Value.ToLower()}";
+            }                 
         }
 
         public async Task WriteAsync(OutputFormatterWriteContext context)
@@ -178,6 +193,27 @@ namespace Handlebars.WebApi
             // Get the view template 
             var view = GetView(context.HttpContext);             
             var json = _formatter.GetContext(context.HttpContext.Request, context.Object);
+
+            // Return the JSON 
+            if ((string)context.HttpContext.Items["formatter"] == "json")
+            {
+                if (context.HttpContext.Items.ContainsKey("cache"))
+                    context.HttpContext.Items["cache"] = json;
+
+                context.HttpContext.Response.ContentType = "application/json";
+
+                // Buffer to the client and dispose all streams etc
+                using (var writer = context.WriterFactory(context.HttpContext.Response.Body, Encoding.UTF8))
+                {
+                    await writer.WriteAsync(json);
+                    await writer.FlushAsync();
+                }
+
+                // Do not proceed any further
+                return;
+            }
+
+            // Return the HTML
             string render = _template.Render(view, json);            
             StringBuilder html = new StringBuilder(render);
 
@@ -243,7 +279,7 @@ namespace Handlebars.WebApi
                 length = html.IndexOf("####", index + 10, false) - index - 10;
                 var key = html.ToString(index + 10, length);
 
-                section.Key = key;
+                section.Key = key.StartsWith("/", StringComparison.Ordinal) ? key : $"/{key}";
                 section.Start = index;
                 section.NameLength = length;
                 section.Stop = index + length + 14;

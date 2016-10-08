@@ -417,6 +417,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Caching\CacheControlProfile.cs" />
+    <Compile Include="Caching\HandlebarsHelperFilter.cs" />
     <Compile Include="Caching\MockCacheStore.cs" />
     <Compile Include="Caching\Time.cs" />
     <Compile Include="Caching\DefaultCacheStore.cs" />
@@ -426,7 +427,7 @@
     <Compile Include="HandlebarsActionExecution.cs" />
     <Compile Include="HandlebarsActionSelector.cs" />
     <Compile Include="HandlebarsControllerConfiguration.cs" />
-    <Compile Include="Caching\HandlebarsCache.cs" />
+    <Compile Include="Caching\CacheControl.cs" />
     <Compile Include="HandlebarsJsonFormatter.cs" />
     <Compile Include="HandlebarsMediaTypeFormatter.cs" />
     <Compile Include="Caching\OutputCacheItem.cs" />

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,28 +17,7 @@ using Wire;
 
 namespace Handlebars.WebApi
 {
-    public class HandlebarsHelperActionFilter : IAsyncActionFilter
-    {
-        public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
-        {
-
-            var values = context.RouteData.Values;
-             
-            if (values.ContainsKey("controller"))
-                context.HttpContext.Items.Add("controller", values["controller"]);
-            if (values.ContainsKey("action"))
-                context.HttpContext.Items.Add("action", values["action"]);
-            
-
-
-            // do something before the action executes
-            await next();
-            // do something after the action executes
-           
-        }
-    }
-     
-     
+    
 
     public class CacheControl : Attribute, IFilterFactory  
     {
@@ -238,9 +218,15 @@ namespace Handlebars.WebApi
             {
 
                 // todo:
+                // - add "area" from Handlebars controller attribute if included to 
+                //   HttpContext.Items
                 // - allow API resposes to be output cached
                 // - allow x-format=json responses to be output cached 
-                
+                // - adjust the formatters attached to this request dynamically based
+                //   
+               
+                                
+
                 var cacheKey = await _keyProvider.GetKey(context.HttpContext, _buildKeyWith);
                 
                 var cachedValue = await _storeOutput.Get(cacheKey);
@@ -386,6 +372,28 @@ namespace Handlebars.WebApi
                     // Stream the contents of the stringbuilder to client
                     await context.HttpContext.Response.WriteAsync(response.ToString());
                     return; 
+                }
+
+                // Ensure the right formatter runs for the cache with any additional options needed 
+                if (context.ActionDescriptor is ControllerActionDescriptor)
+                {
+                    var actionDescriptor = ((ControllerActionDescriptor)context.ActionDescriptor);
+                    if (actionDescriptor.MethodInfo.ReturnType != typeof(Task))
+                    {
+                        var controllerTypeInfo = actionDescriptor.ControllerTypeInfo;
+                        var formatter = controllerTypeInfo.GetCustomAttributes(typeof(HandlebarsFormatterAttribute), true);
+                        if (formatter != null)
+                        {
+                            context.HttpContext.Items["formatter"] = context.HttpContext.Request.Query.ContainsKey("x-format") ? context.HttpContext.Request.Query["x-format"].ToString()
+                                                                                                                               : "html";
+
+                            // if there is an area add that too
+                            var area = ((HandlebarsFormatterAttribute)formatter[0]).Area;
+                            if (!string.IsNullOrEmpty(area))
+                                context.HttpContext.Items["hb-area"] = area;
+
+                        }
+                    }
                 }
 
                 // allows the media type formatter to work
