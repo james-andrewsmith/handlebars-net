@@ -15,13 +15,8 @@ using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 
-using Microsoft.AspNetCore.Mvc.Internal;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.Extensions.Logging;
 
-
-using Newtonsoft.Json;
 using Wire;
 
 namespace Handlebars.WebApi
@@ -33,13 +28,15 @@ namespace Handlebars.WebApi
         public HandlebarsMediaTypeFormatter(IHandlebarsTemplate template,
                                             IRequestFormatter formatter,
                                             Lazy<HandlebarsActionExecutor> executor,
-                                            IStoreOutputCache storeOutput)
+                                            IStoreOutputCache storeOutput,
+                                            Lazy<ILogger<HandlebarsMediaTypeFormatter>> logger)
             : base()
         {            
             this._template = template;
             this._formatter = formatter;
             this._executor = executor;
             this._storeOutput = storeOutput;
+            this._logger = logger;
 
 
             // Setup Wire for fastest performance
@@ -56,6 +53,7 @@ namespace Handlebars.WebApi
         #endregion
 
         #region // Dependency Injection //
+        private readonly Lazy<ILogger<HandlebarsMediaTypeFormatter>> _logger;
         private readonly Lazy<HandlebarsActionExecutor> _executor; 
         private readonly IHandlebarsTemplate _template;  
         private readonly IRequestFormatter _formatter;
@@ -265,21 +263,28 @@ namespace Handlebars.WebApi
                 if (context.Items.ContainsKey("cache"))
                     context.Items["cache-donut"] = donuts;
 
-                // move backwards through the donuts 
-                for (int i = donuts.Count; i > 0; i--)
-                {
-                    var kvp = donuts[i - 1];
+                // To avoid enumator collision issues with the mutliple donuts
+                // cache the keys in a new object up here and use index access
+                var keys = original.Headers.Keys.ToArray();
+                var tasks = new Task<IActionResult>[donuts.Count];
+                var contexts = new DefaultHttpContext[donuts.Count];                    
 
-                    string url = kvp.Key;
+                // move backwards through the donuts 
+                for (int i = 0; i < donuts.Count; i++)
+                {
+                    var kvp = donuts[i];
+                    string url = kvp.Key; 
+
+                    _logger.Value.LogInformation("Starting donut {url}", url);
 
                     // copy revevant details to new context
-                    var features = new FeatureCollection(original.HttpContext.Features); 
-                    features.Set<IItemsFeature>(new ItemsFeature()); 
+                    var features = new FeatureCollection(original.HttpContext.Features);
+                    features.Set<IItemsFeature>(new ItemsFeature());
                     var http = new DefaultHttpContext(features);
-                    
-                    foreach (var header in original.Headers)
-                        http.Request.Headers[header.Key] = header.Value;
 
+                    for(var k = 0; k < keys.Length; k++)
+                        http.Request.Headers[keys[k]] = original.Headers[keys[k]];                        
+                        
                     http.Items["donut"] = true;
                     if (original.HttpContext.Items.ContainsKey("experiment"))
                         http.Items.Add("experiment", original.HttpContext.Items["experiment"]);
@@ -287,19 +292,35 @@ namespace Handlebars.WebApi
                     http.Request.Path = url;
                     http.User = original.HttpContext.User;
 
-                    IActionResult result = await _executor.Value.ExecuteAsync(http, url);
+                    _logger.Value.LogInformation("Executing donut {url}", url);
+                    contexts[i] = http;
+                    tasks[i] = _executor.Value.ExecuteAsync(http, url);
+                }
+
+                // Wait for all the donuts to complete
+                await Task.WhenAll(tasks);
+
+                // Actually fill the donut hole 
+                for (int i = (donuts.Count - 1); i >= 0; i--)
+                {
+                    var kvp = donuts[i];
+                    string url = kvp.Key;
 
                     string value = $"<!-- {kvp.Key} -->";
                     string contentType = "text/html";
                     int statusCode = 200;
 
+                    var task = tasks[i];
+                    var http = contexts[i];
+                    var result = task.Result;
+                    
                     // Check for a response which is from the cache
                     if (result is ContentResult)
                     {
                         var cr = ((ContentResult)result);
                         value = cr.Content;
                         statusCode = cr.StatusCode == null ? 200 : (int)cr.StatusCode;
-                        contentType = cr.ContentType;                        
+                        contentType = cr.ContentType;
                     }
                     else
                     {
@@ -311,7 +332,7 @@ namespace Handlebars.WebApi
                             value = _template.Render(view, j);
                             statusCode = ok.StatusCode == null ? 200 : (int)ok.StatusCode;
                             contentType = "text/html";
-                        }                        
+                        }
                     }
 
                     // We know this wasn't from a cache hit, so add this to the cache
@@ -334,7 +355,9 @@ namespace Handlebars.WebApi
                     // Fill the donut hole using stringbuilder
                     html.Remove(kvp.Start, kvp.Stop - kvp.Start);
                     html.Insert(kvp.Start, value);
-                }                 
+                    _logger.Value.LogInformation("Finished donut {url}", url);
+                }
+                                
             }            
             
             return html;

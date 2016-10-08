@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
@@ -287,12 +288,18 @@ namespace Handlebars.WebApi
                     // Get a stringbuilder for handling the donut insertion 
                     var response = new StringBuilder(item.Content);                     
                     var original = context.HttpContext.Request;
-                    
+
+                    // To avoid enumator collision issues with the mutliple donuts
+                    // cache the keys in a new object up here and use index access
+                    var keys = original.Headers.Keys.ToArray();
+                    var tasks = new Task<IActionResult>[donuts.Count];
+                    var contexts = new DefaultHttpContext[donuts.Count];
+
                     // move backwards through the donuts 
-                    for (int i = donuts.Count; i > 0; i--)
+                    for (int i = 0; i < donuts.Count; i++)
                     {
                         // Perf: avoid allocations 
-                        var kvp = donuts[i - 1];
+                        var kvp = donuts[i];
                         string url = kvp.Key;
 
                         // copy revevant details to new context
@@ -300,8 +307,8 @@ namespace Handlebars.WebApi
                         features.Set<IItemsFeature>(new ItemsFeature());
                         var http = new DefaultHttpContext(features);
 
-                        foreach (var header in original.Headers)
-                            http.Request.Headers[header.Key] = header.Value;
+                        for (var k = 0; k < keys.Length; k++)
+                            http.Request.Headers[keys[k]] = original.Headers[keys[k]];
 
                         http.Items["donut"] = true;
 
@@ -312,10 +319,26 @@ namespace Handlebars.WebApi
                         http.Request.Path = url;
                         http.User = context.HttpContext.User;
 
-                        IActionResult result = await _executor.ExecuteAsync(http, url);
+                        contexts[i] = http;
+                        tasks[i] = _executor.ExecuteAsync(http, url);
+                    }
+
+                    // Wait for all the donuts to complete
+                    await Task.WhenAll(tasks);
+
+                    // Actually fill the donut hole 
+                    for (int i = (donuts.Count - 1); i >= 0; i--)
+                    {
+                        var kvp = donuts[i];
+                        string url = kvp.Key;
+                         
                         string value = $"<!-- {kvp.Key} -->";
                         string contentType = "text/html";
                         int statusCode = 200;
+
+                        var task = tasks[i];
+                        var http = contexts[i];
+                        var result = task.Result;
 
                         // Check for a response which is from the cache
                         if (result is ContentResult)
