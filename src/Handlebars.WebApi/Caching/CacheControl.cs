@@ -382,7 +382,7 @@ namespace Handlebars.WebApi
                     {
                         var controllerTypeInfo = actionDescriptor.ControllerTypeInfo;
                         var formatter = controllerTypeInfo.GetCustomAttributes(typeof(HandlebarsFormatterAttribute), true);
-                        if (formatter != null)
+                        if (formatter.Length > 0)
                         {
                             context.HttpContext.Items["formatter"] = context.HttpContext.Request.Query.ContainsKey("x-format") ? context.HttpContext.Request.Query["x-format"].ToString()
                                                                                                                                : "html";
@@ -430,6 +430,28 @@ namespace Handlebars.WebApi
                              response.StatusCode == (int)HttpStatusCode.MovedPermanently)
                     {
                         // cache the redirection header etc
+                        var item = new OutputCacheItem();
+                        item.StatusCode = response.StatusCode;
+                        item.ContentType = response.ContentType;
+                        item.Content = response.Headers["location"];
+
+                        using (var ms = new MemoryStream())
+                        {
+                            _serializer.Serialize(item, ms, _ss);
+                            await _storeOutput.Set(cacheKey, ms.ToArray());
+                        }
+
+                        // Prepare HTML for browsers which ignore headers
+                        var html = string.Concat(
+                            "<html><head><title>Moved</title></head><body><h1>Moved</h1><p>This page has moved to <a href=\"",
+                            item.Content,
+                            "\">",
+                            item.Content,
+                            "</a>.</p></body></html>"
+                        );
+
+                        // Send to client then exit
+                        await context.HttpContext.Response.WriteAsync(html);
                     }
                      
                 }

@@ -435,6 +435,11 @@
     <Compile Include="HttpUtility.cs" />
     <Compile Include="Caching\ICacheKeyProvider.cs" />
     <Compile Include="IRequestFormatter.cs" />
+    <Compile Include="JsonWithCacheOutputFormatter.cs" />
+    <Compile Include="JsonWithCacheResultExecutor.cs" />
+    <Compile Include="MultiTextWriter.cs" />
+    <Compile Include="MvcJsonWithCacheMvcCoreBuilderExtensions.cs" />
+    <Compile Include="MvcJsonWithCacheMvcOptionsSetup.cs" />
     <Compile Include="SectionData.cs" />
     <Compile Include="TemplateProvider\MapPath.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
