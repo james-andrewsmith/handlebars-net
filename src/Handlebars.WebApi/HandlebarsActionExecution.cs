@@ -84,12 +84,11 @@ namespace Handlebars.WebApi
                 rc.RouteData.Routers.Add(_router);
 
                 await _router.RouteAsync(rc);
-
-                var values = rc.RouteData.Values;
-                if (values.ContainsKey("controller"))
-                    context.Items.Add("controller", values["controller"]);
-                if (values.ContainsKey("action"))
-                    context.Items.Add("action", values["action"]);
+                
+                context.Features[typeof(IRoutingFeature)] = new RoutingFeature()
+                {
+                    RouteData = rc.RouteData
+                };
 
                 var candidates = _actionSelectionDecisionTree.Select(rc.RouteData.Values);                
                 var actionDescriptor = _actionSelector.SelectBestCandidate(rc, candidates) as ControllerActionDescriptor;

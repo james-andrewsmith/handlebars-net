@@ -2,7 +2,7 @@
 <package>
   <metadata>
     <id>Handlebars</id>
-    <version>1.0.9</version>
+    <version>1.0.13</version>
     <authors>jandrewsmith</authors>
     <owners>jandrewsmith</owners>
     <licenseUrl>http://LICENSE_URL_HERE_OR_DELETE_THIS_LINE</licenseUrl>
@@ -147,6 +147,8 @@
     <contentFiles>
       <files include="any/**/*.dll" buildAction="None" copyToOutput="true" flatten="true" />
       <files include="any/**/*.pdb" buildAction="None" copyToOutput="true" flatten="true" />
+      <files include="any/**/script/*.*" buildAction="None" copyToOutput="true" flatten="false" />
+      <files include="any/**/helper/*.*" buildAction="None" copyToOutput="true" flatten="false" />
     </contentFiles>
   </metadata>
   <files>
@@ -161,6 +163,8 @@
     <file src="..\build\net462\ClearScriptV8-64.dll" target="lib\net462" />
     <file src="..\build\net462\v8-ia32.dll" target="contentFiles\any\net462" />
     <file src="..\build\net462\v8-x64.dll" target="contentFiles\any\net462" />
+    <file src="..\build\net462\script\*" target="contentFiles\any\net462\script" />
+    <file src="..\build\net462\helper\*" target="contentFiles\any\net462\helper" />
     <!-- Other files -->
     <!-- ... -->
   </files>

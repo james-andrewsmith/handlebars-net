@@ -293,6 +293,7 @@ namespace Handlebars.WebApi
                         features.Set<IItemsFeature>(new ItemsFeature());
                         var http = new DefaultHttpContext(features);
 
+
                         for (var k = 0; k < keys.Length; k++)
                             http.Request.Headers[keys[k]] = original.Headers[keys[k]];
 

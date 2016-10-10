@@ -88,6 +88,9 @@
     <Content Include="Script\hbv2.js">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Script\marked.min.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="Script\moment.min.js">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
