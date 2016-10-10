@@ -2,6 +2,7 @@
 var Handlebars = Handlebars || require('./../Script/handlebars-1.0.0.js');
 var accounting = accounting || require('./../Script/accounting.min.js');
 var moment = moment || require('./../Script/moment.min.js');
+var marked = marked || require('./../Script/marked.min.js');
 
 // ?? will this work
 // {{raw}}{{/raw}}
@@ -12,6 +13,19 @@ Handlebars.registerHelper('raw', function (text) {
     return new Handlebars.SafeString(text);
 });
 
+Handlebars.registerHelper('markdown', function (md) {
+
+    return new Handlebars.SafeString(marked(md, {
+      renderer: new marked.Renderer(),
+      gfm: true,
+      tables: false,
+      breaks: false,
+      pedantic: true,
+      sanitize: true,
+      smartLists: true,
+      smartypants: true
+    }));
+});
 
 Handlebars.registerHelper("limit", function (text) {
     return (text.length <= 18) ? text : text.substr(0, 18) + '...';

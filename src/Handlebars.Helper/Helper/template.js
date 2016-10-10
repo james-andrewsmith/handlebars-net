@@ -54,4 +54,3 @@ Handlebars.registerHelper('donut', function () {
     var result = '####donut:' + args.join('/') + '####';
     return new Handlebars.SafeString(result);
 });
-

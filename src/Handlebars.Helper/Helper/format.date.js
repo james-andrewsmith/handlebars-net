@@ -3,6 +3,10 @@ var Handlebars = Handlebars || require('./../Script/handlebars-1.0.0.js');
 var accounting = accounting || require('./../Script/accounting.min.js');
 var moment = moment || require('./../Script/moment.min.js');
 
+Handlebars.registerHelper('epoch', function () {
+    return moment().local().unix();
+});
+
 Handlebars.registerHelper('moment', function (date, format) {
     try {
         var isEpoch = _.isNumber(date);
@@ -45,6 +49,26 @@ Handlebars.registerHelper('friendly_date', function (epoch) {
 
         // return '';
         return moment.unix(epoch).local().format('MMMM Do YYYY');
+    }
+    catch (e) {
+        return e.toString();
+    }
+});
+
+Handlebars.registerHelper('friendly_from', function (epoch) {
+    try {
+        if (!_.isNumber(epoch)) {
+            return '';
+        }
+
+        if (epoch <= 0) {
+            return '';
+        }
+
+        // return '';
+        return moment.unix(epoch).local().calendar(null, {            
+            sameElse: 'DD MMM YYYY'
+        });
     }
     catch (e) {
         return e.toString();
