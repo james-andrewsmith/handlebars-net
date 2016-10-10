@@ -293,7 +293,6 @@ namespace Handlebars.WebApi
                         features.Set<IItemsFeature>(new ItemsFeature());
                         var http = new DefaultHttpContext(features);
 
-
                         for (var k = 0; k < keys.Length; k++)
                             http.Request.Headers[keys[k]] = original.Headers[keys[k]];
 
@@ -302,6 +301,8 @@ namespace Handlebars.WebApi
                         // Ensure A/B testing stays consistent between calls
                         if (context.HttpContext.Items.ContainsKey("experiment"))
                             http.Items.Add("experiment", context.HttpContext.Items["experiment"]);
+                        if (original.HttpContext.Items.ContainsKey("x-account"))
+                            http.Items.Add("x-account", original.HttpContext.Items["x-account"]);
 
                         http.Request.Path = url;
                         http.User = context.HttpContext.User;
@@ -328,40 +329,43 @@ namespace Handlebars.WebApi
                         var result = task.Result;
 
                         // Check for a response which is from the cache
-                        if (result is ContentResult)
+                        if (result != null)
                         {
-                            var cr = ((ContentResult)result);
-                            value = cr.Content;
-                            statusCode = cr.StatusCode == null ? 200 : (int)cr.StatusCode;
-                            contentType = cr.ContentType;
-                        }
-                        else
-                        {
-                            var view = HandlebarsMediaTypeFormatter.GetView(http);
-                            if (result is OkObjectResult)
+                            if (result is ContentResult)
                             {
-                                var ok = ((OkObjectResult)result);
-                                var j = _formatter.GetContext(http.Request, ok.Value);
-                                value = _template.Render(view, j);
-                                statusCode = ok.StatusCode == null ? 200 : (int)ok.StatusCode;
-                                contentType = "text/html";
+                                var cr = ((ContentResult)result);
+                                value = cr.Content;
+                                statusCode = cr.StatusCode == null ? 200 : (int)cr.StatusCode;
+                                contentType = cr.ContentType;
                             }
-                        }
-
-                        // We know this wasn't from a cache hit, so add this to the cache
-                        if (!http.Items.ContainsKey("cache-hit") &&
-                            http.Items.ContainsKey("cache-key"))
-                        { 
-                            using (var ms = new MemoryStream())
+                            else
                             {
-                                _serializer.Serialize(new OutputCacheItem
+                                var view = HandlebarsMediaTypeFormatter.GetView(http);
+                                if (result is OkObjectResult)
                                 {
-                                    ContentType = contentType,
-                                    StatusCode = statusCode,
-                                    Content = value
-                                }, ms, _ss);
+                                    var ok = ((OkObjectResult)result);
+                                    var j = _formatter.GetContext(http.Request, ok.Value);
+                                    value = _template.Render(view, j);
+                                    statusCode = ok.StatusCode == null ? 200 : (int)ok.StatusCode;
+                                    contentType = "text/html";
+                                }
+                            }
 
-                                await _storeOutput.Set(Convert.ToString(http.Items["cache-key"]), ms.ToArray());
+                            // We know this wasn't from a cache hit, so add this to the cache
+                            if (!http.Items.ContainsKey("cache-hit") &&
+                                http.Items.ContainsKey("cache-key"))
+                            {
+                                using (var ms = new MemoryStream())
+                                {
+                                    _serializer.Serialize(new OutputCacheItem
+                                    {
+                                        ContentType = contentType,
+                                        StatusCode = statusCode,
+                                        Content = value
+                                    }, ms, _ss);
+
+                                    await _storeOutput.Set(Convert.ToString(http.Items["cache-key"]), ms.ToArray());
+                                }
                             }
                         }
 

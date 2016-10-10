@@ -92,7 +92,10 @@ namespace Handlebars.WebApi
 
                 var candidates = _actionSelectionDecisionTree.Select(rc.RouteData.Values);                
                 var actionDescriptor = _actionSelector.SelectBestCandidate(rc, candidates) as ControllerActionDescriptor;
-                               
+
+                if (actionDescriptor == null)
+                    return null;
+
                 // Find the output cache filter
                 var caching = actionDescriptor.FilterDescriptors
                                               .Where(_ => _.Filter is CacheControl)
