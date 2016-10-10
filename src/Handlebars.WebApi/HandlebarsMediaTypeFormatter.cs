@@ -201,6 +201,7 @@ namespace Handlebars.WebApi
                     context.HttpContext.Items["cache"] = json;
 
                 context.HttpContext.Response.ContentType = "application/json";
+                context.HttpContext.Response.Headers["x-template"] = view;
 
                 // Buffer to the client and dispose all streams etc
                 using (var writer = context.WriterFactory(context.HttpContext.Response.Body, Encoding.UTF8))
@@ -336,7 +337,15 @@ namespace Handlebars.WebApi
                 }
 
                 // Wait for all the donuts to complete
-                await Task.WhenAll(tasks);
+                try
+                {
+                    await Task.WhenAll(tasks);
+                }
+                catch (Exception exp)
+                {
+                    Console.WriteLine(exp.Message);
+                    Console.WriteLine(exp.StackTrace);
+                }
 
                 // Actually fill the donut hole 
                 for (int i = (donuts.Count - 1); i >= 0; i--)

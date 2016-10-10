@@ -146,6 +146,15 @@ namespace Handlebars.WebApi
             set;
         }
 
+        /// <summary>
+        /// Uses identity is in role to detect build a key
+        /// </summary>
+        public string[] VaryByIdentityRole
+        {
+            get;
+            set;
+        }
+
 
         /// <summary>
         /// The hash is used both as an etag and as a method to determine if the 
@@ -377,29 +386,7 @@ namespace Handlebars.WebApi
                     // Stream the contents of the stringbuilder to client
                     await context.HttpContext.Response.WriteAsync(response.ToString());
                     return; 
-                }
-
-                // Ensure the right formatter runs for the cache with any additional options needed 
-                if (context.ActionDescriptor is ControllerActionDescriptor)
-                {
-                    var actionDescriptor = ((ControllerActionDescriptor)context.ActionDescriptor);
-                    if (actionDescriptor.MethodInfo.ReturnType != typeof(Task))
-                    {
-                        var controllerTypeInfo = actionDescriptor.ControllerTypeInfo;
-                        var formatter = controllerTypeInfo.GetCustomAttributes(typeof(HandlebarsFormatterAttribute), true);
-                        if (formatter.Length > 0)
-                        {
-                            context.HttpContext.Items["formatter"] = context.HttpContext.Request.Query.ContainsKey("x-format") ? context.HttpContext.Request.Query["x-format"].ToString()
-                                                                                                                               : "html";
-
-                            // if there is an area add that too
-                            var area = ((HandlebarsFormatterAttribute)formatter[0]).Area;
-                            if (!string.IsNullOrEmpty(area))
-                                context.HttpContext.Items["hb-area"] = area;
-
-                        }
-                    }
-                }
+                }                
 
                 // allows the media type formatter to work
                 context.HttpContext.Items.Add("cache", "");
