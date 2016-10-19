@@ -10,5 +10,7 @@ namespace Handlebars.WebApi
     {
         Task<string> Get(string key);
         Task Set(string key, string etag);
+
+        Task Remove(string key);
     }
 }

@@ -27,14 +27,20 @@ namespace Handlebars.WebApi
 
     public class DefaultEtagCacheStore : IStoreEtagCache
     {
-        private static readonly Dictionary<string, string> _etag = new Dictionary<string, string>();
+        private static readonly Dictionary<string, string> _etag = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public Task<string> Get(string key)
         {
             if (!_etag.ContainsKey(key)) return Task.FromResult<string>(null);
             return Task.FromResult(_etag[key]);
         }
-         
+
+        public Task Remove(string key)
+        {
+            _etag.Remove(key);
+            return Task.CompletedTask;
+        }
+
         public Task Set(string key, string etag)
         {
             _etag[key] = etag;

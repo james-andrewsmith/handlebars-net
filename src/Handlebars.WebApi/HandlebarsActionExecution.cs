@@ -106,7 +106,10 @@ namespace Handlebars.WebApi
                     var filter = caching.Filter as CacheControl;
 
                     // Get the key
-                    key = await _keyProvider.GetKey(context, filter.BuildHashWith);                    
+                    
+                    // todo:
+                    // check the options have been populated by the filter instance
+                    key = await _keyProvider.GetKey(context, filter.Options);                    
 
                     // Return the cached response if it exists
                     var cachedValue = await _storeOutput.Get(key);

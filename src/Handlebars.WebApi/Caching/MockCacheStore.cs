@@ -27,7 +27,12 @@ namespace Handlebars.WebApi
         {
             return Task.FromResult<string>(null);            
         }
-         
+
+        public Task Remove(string key)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task Set(string key, string etag)
         {
             return Task.CompletedTask;
