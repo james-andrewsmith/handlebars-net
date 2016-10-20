@@ -26,9 +26,9 @@ namespace Handlebars.WebApi
         private readonly MurmurHash3 _murmur3; 
         #endregion 
 
-        public async Task<string> GetKey(HttpContext context, CacheControlOptions options)
+        public async Task<string> GetKey(HttpContext context, CacheControlOptions options, string hash)
         {
-            return context.Request.Path.Value.ToString();
+            return $"{context.Request.Path.Value}:{hash}";
         }
 
         /// <summary>
@@ -39,14 +39,16 @@ namespace Handlebars.WebApi
         /// <param name="context"></param>
         /// <param name="options"></param>
         /// <returns></returns>
-        public async Task<string[]> GetKeyValue(HttpContext context, CacheControlOptions options)
+        public async Task<KeyValuePair<string[], string[]>> GetKeyValue(HttpContext context, CacheControlOptions options)
         {
-            var set = new string[options.BuildHashWith.Length];
+            var keys = new string[options.BuildHashWith.Length];
+            var values = new string[options.BuildHashWith.Length];
             for (var i = 0; i < options.BuildHashWith.Length; i ++)
             {
-                set[i] = i.ToString();
+                keys[i] = i.ToString();
+                values[i] = i.ToString();
             }
-            return set;
+            return new KeyValuePair<string[], string[]>(keys, values);
         }
 
         /// <summary>

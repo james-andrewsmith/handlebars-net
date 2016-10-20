@@ -10,15 +10,15 @@ namespace Handlebars.WebApi
 {
     public class DefaultOutputCacheStore : IStoreOutputCache
     {
-        private static readonly Dictionary<string, byte[]> _output = new Dictionary<string, byte[]>();        
+        private static readonly Dictionary<string, OutputCacheItem> _output = new Dictionary<string, OutputCacheItem>(StringComparer.OrdinalIgnoreCase);        
         
-        public Task<byte[]> Get(string key)
+        public Task<OutputCacheItem> Get(string key)
         {
-            if (!_output.ContainsKey(key)) return Task.FromResult<byte[]>(null);
+            if (!_output.ContainsKey(key)) return Task.FromResult<OutputCacheItem>(null);
             return Task.FromResult(_output[key]);
         }
 
-        public Task Set(string key, byte[] item)
+        public Task Set(string key, string[] dependencies, int duration, OutputCacheItem item)
         {
             _output[key] = item;
             return Task.CompletedTask;
@@ -27,11 +27,11 @@ namespace Handlebars.WebApi
 
     public class DefaultEtagCacheStore : IStoreEtagCache
     {
-        private static readonly Dictionary<string, string> _etag = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, KeyValuePair<string[], string[]>> _etag = new Dictionary<string, KeyValuePair<string[], string[]>>(StringComparer.OrdinalIgnoreCase);
 
-        public Task<string> Get(string key)
+        public Task<KeyValuePair<string[], string[]>> Get(string key)
         {
-            if (!_etag.ContainsKey(key)) return Task.FromResult<string>(null);
+            if (!_etag.ContainsKey(key)) return Task.FromResult(new KeyValuePair<string[], string[]>(null, null));
             return Task.FromResult(_etag[key]);
         }
 
@@ -41,9 +41,9 @@ namespace Handlebars.WebApi
             return Task.CompletedTask;
         }
 
-        public Task Set(string key, string etag)
+        public Task Set(string key, KeyValuePair<string[], string[]> set, int duration)
         {
-            _etag[key] = etag;
+            _etag[key] = set;
             return Task.CompletedTask;
         }
 

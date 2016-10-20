@@ -8,8 +8,9 @@ namespace Handlebars.WebApi
 {
     public interface IStoreEtagCache
     {
-        Task<string> Get(string key);
-        Task Set(string key, string etag);
+        Task<KeyValuePair<string[], string[]>> Get(string key);
+
+        Task Set(string key, KeyValuePair<string[], string[]> set, int duration);
 
         Task Remove(string key);
     }

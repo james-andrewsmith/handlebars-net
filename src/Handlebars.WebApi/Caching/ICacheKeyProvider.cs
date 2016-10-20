@@ -10,9 +10,9 @@ namespace Handlebars.WebApi
 {
     public interface ICacheKeyProvider
     {
-        Task<string> GetKey(HttpContext context, CacheControlOptions options);
+        Task<string> GetKey(HttpContext context, CacheControlOptions options, string hash);
 
-        Task<string[]> GetKeyValue(HttpContext context, CacheControlOptions options);
+        Task<KeyValuePair<string[], string[]>> GetKeyValue(HttpContext context, CacheControlOptions options);
 
         Task<string> GetHashOfValue(HttpContext context, CacheControlOptions options, string[] set);
     }

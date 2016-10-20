@@ -17,9 +17,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 
 using Microsoft.Extensions.Logging;
-
-using Wire;
-
+ 
 namespace Handlebars.WebApi
 {
     public sealed class HandlebarsMediaTypeFormatter : IOutputFormatter
@@ -29,7 +27,7 @@ namespace Handlebars.WebApi
         public HandlebarsMediaTypeFormatter(IHandlebarsTemplate template,
                                             IRequestFormatter formatter,
                                             Lazy<HandlebarsActionExecutor> executor,
-                                            IStoreOutputCache storeOutput,
+                                            Lazy<IStoreOutputCache> storeOutput,
                                             Lazy<ILogger<HandlebarsMediaTypeFormatter>> logger)
             : base()
         {            
@@ -37,18 +35,7 @@ namespace Handlebars.WebApi
             this._formatter = formatter;
             this._executor = executor;
             this._storeOutput = storeOutput;
-            this._logger = logger;
-
-
-            // Setup Wire for fastest performance
-            var types = new[] {
-                    typeof(OutputCacheItem),
-                    typeof(SectionData)
-                };
-
-            this._serializer = new Serializer(new SerializerOptions(knownTypes: types));
-            this._ss = _serializer.GetSerializerSession();
-            this._ds = _serializer.GetDeserializerSession();
+            this._logger = logger;             
         }
 
         #endregion
@@ -58,11 +45,7 @@ namespace Handlebars.WebApi
         private readonly Lazy<HandlebarsActionExecutor> _executor; 
         private readonly IHandlebarsTemplate _template;  
         private readonly IRequestFormatter _formatter;
-        private readonly IStoreOutputCache _storeOutput;
-
-        private readonly Serializer _serializer;
-        private readonly SerializerSession _ss;
-        private readonly DeserializerSession _ds;
+        private readonly Lazy<IStoreOutputCache> _storeOutput; 
         #endregion
 
 
@@ -388,17 +371,17 @@ namespace Handlebars.WebApi
                         if (!http.Items.ContainsKey("cache-hit") &&
                             http.Items.ContainsKey("cache-key"))
                         {
-                            using (var ms = new MemoryStream())
-                            {
-                                _serializer.Serialize(new OutputCacheItem
+                            await _storeOutput.Value.Set(
+                                Convert.ToString(http.Items["cache-key"]),
+                                http.Items["cache-set"] as string[],
+                                Convert.ToInt32(http.Items["cache-duration"]),
+                                new OutputCacheItem
                                 {
                                     ContentType = contentType,
                                     StatusCode = statusCode,
                                     Content = value
-                                }, ms, _ss);
-
-                                await _storeOutput.Set(Convert.ToString(http.Items["cache-key"]), ms.ToArray());
-                            }
+                                }
+                            );                         
                         }
                     }
 

@@ -8,8 +8,8 @@ namespace Handlebars.WebApi
 {
     public interface IStoreOutputCache
     {
-        Task<byte[]> Get(string key);
+        Task<OutputCacheItem> Get(string key);
 
-        Task Set(string key, byte[] item);
+        Task Set(string key, string[] dependencies, int duration, OutputCacheItem item);
     }
 }

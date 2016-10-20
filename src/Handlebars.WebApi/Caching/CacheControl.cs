@@ -13,8 +13,6 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 
-using Wire; 
-
 namespace Handlebars.WebApi
 {
 
@@ -23,6 +21,23 @@ namespace Handlebars.WebApi
 
         #region // IFilterFactory //
         public IFilterMetadata CreateInstance(IServiceProvider serviceProvider)
+        {
+            GetOptions();
+
+            // Build the specific filter object which will be used for 
+            // requests to this action
+            return new OutputCacheFilter(
+                serviceProvider.GetService<IHandlebarsTemplate>(),
+                serviceProvider.GetService<IRequestFormatter>(),
+                serviceProvider.GetService<HandlebarsActionExecutor>(),
+                serviceProvider.GetService<ICacheKeyProvider>(),
+                serviceProvider.GetService<IStoreEtagCache>(),
+                serviceProvider.GetService<IStoreOutputCache>(),
+                _options
+            );
+        }
+
+        private void GetOptions()
         {
             // Ensure the more specific attributes are used if provided
             var etagDuration = this.EtagDuration == 0 ? this.Duration : this.EtagDuration;
@@ -45,24 +60,16 @@ namespace Handlebars.WebApi
                 VaryByRole = this.VaryByRole,
                 BuildHashWith = this.BuildHashWith
             };
-
-            // Build the specific filter object which will be used for 
-            // requests to this action
-            return new OutputCacheFilter(
-                serviceProvider.GetService<IHandlebarsTemplate>(),
-                serviceProvider.GetService<IRequestFormatter>(),
-                serviceProvider.GetService<HandlebarsActionExecutor>(),
-                serviceProvider.GetService<ICacheKeyProvider>(),
-                serviceProvider.GetService<IStoreEtagCache>(),
-                serviceProvider.GetService<IStoreOutputCache>(),
-                _options
-            );
         }
 
         private CacheControlOptions _options;
         internal CacheControlOptions Options
         {
-            get { return _options; }
+            get
+            {
+                if (_options == null) GetOptions();
+                return _options;
+            }
         }
 
         public bool IsReusable
@@ -240,35 +247,20 @@ namespace Handlebars.WebApi
                                      CacheControlOptions options) : base()
             {
                 // Service injection
-                this._template = template;
-                this._formatter = formatter;
-                this._executor = executor;
-                this._keyProvider = keyProvider;
-                this._storeEtag = storeEtag;
-                this._storeOutput = storeOutput;                
-
-                // Setup Wire for fastest performance
-                var types = new[] {
-                    typeof(OutputCacheItem),
-                    typeof(SectionData)
-                };
-
-                this._serializer = new Serializer(new SerializerOptions(knownTypes: types));
-                this._ss = _serializer.GetSerializerSession();
-                this._ds = _serializer.GetDeserializerSession();
-
+                _template = template;
+                _formatter = formatter;
+                _executor = executor;
+                _keyProvider = keyProvider;
+                _storeEtag = storeEtag;
+                _storeOutput = storeOutput;                
+                 
                 // Setup filter configuration 
-                this._options = options;                                        
+                _options = options;                                        
             }
             #endregion 
 
-            #region // Services //
-            private readonly Serializer _serializer;
-            private readonly SerializerSession _ss;
-            private readonly DeserializerSession _ds;
-
+            #region // Services //             
             private readonly CacheControlOptions _options;
-
             private readonly HandlebarsActionExecutor _executor;
             private readonly IHandlebarsTemplate _template;
             private readonly IRequestFormatter _formatter;
@@ -283,40 +275,50 @@ namespace Handlebars.WebApi
             public async Task OnResourceExecutionAsync(ResourceExecutingContext context,
                                                        ResourceExecutionDelegate next)
             {
-                // if this filter is running we can assume either CacheEtag or CacheOutput 
-                // is true, so no need for an additional check
-                var cacheKey = await _keyProvider.GetKey(context.HttpContext, _options);
+                KeyValuePair<string[], string[]> set;
 
-                if (_options.CacheEtag)
+                // Has the client sent an etag to the server, if so, we will calculate
+                // if there has been any change to it here 
+                string hash;
+                if (context.HttpContext.Request.Headers.ContainsKey("If-None-Match"))
                 {
-                    // Has the client sent an etag to the server, if so, we will calculate
-                    // if there has been any change to it here 
-                    string hash;
-                    if (context.HttpContext.Request.Headers.ContainsKey("If-None-Match"))
+                    // use the etag to check the store
+                    var etagHash = Convert.ToString(context.HttpContext.Request.Headers["If-None-Match"]);
+                    
+                    // convert the weak reference into just the hash 
+                    set = await _storeEtag.Get(etagHash.Substring(3, etagHash.Length - 4));
+
+                    // if the cache has been cleared call back to recreating the set 
+                    // from the configuration and getting the keys fresh
+                    if (set.Value.Length != _options.BuildHashWith.Length)
+                        set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
+
+                    // calculate the actual hash from the values 
+                    hash = await _keyProvider.GetHashOfValue(context.HttpContext, _options, set.Value);
+                    if (_options.CacheEtag && $"W/\"{hash}\"" == etagHash)
                     {
-                        // use the etag to check the store
-                        var etagHash = context.HttpContext.Request.Headers["If-None-Match"];
-                        
-                        // based on the configuration this builds the keys used to lookup data, which
-                        // is then hashed into the etag
-                        var cacheKeySet = await _keyProvider.GetKeyValue(context.HttpContext, _options);
-
-                        // calculate the actual hash from the values 
-                        hash = await _keyProvider.GetHashOfValue(context.HttpContext, _options, cacheKeySet);
-                        if ($"W/\"{hash}\"" == etagHash)
-                        {
-                            // if the ETag matches don't do any work, just send the not modified                           
-                            context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NotModified;
-                            context.HttpContext.Response.ContentType = "text/html";
-                            context.HttpContext.Response.Headers["ETag"] = etagHash;
-                            context.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=" + _options.EtagDuration;
-                            return;
-                        } 
-                    } 
-
-                    // time to build a key and cache it
-                    var set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
-                    hash = await _keyProvider.GetHashOfValue(context.HttpContext, _options, set);
+                        // if the ETag matches don't do any work, just send the not modified                           
+                        context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NotModified;
+                        context.HttpContext.Response.ContentType = "text/html";
+                        context.HttpContext.Response.Headers["ETag"] = etagHash;
+                        context.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=" + _options.EtagDuration;
+                        return;
+                    }
+                }
+                else
+                {
+                    // if no etag was provided then calculate it for this request, as at some point
+                    // in the request chain this will be needed for naming the output cache item
+                    // and controlling it's dependency chain via cancel tokens
+                    set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
+                    hash = await _keyProvider.GetHashOfValue(context.HttpContext, _options, set.Value);
+                }
+                
+                // We want future requests from this endpoint to use donut caching
+                if (_options.CacheEtag && !context.HttpContext.Items.ContainsKey("donut"))
+                {
+                    // this will save time on future runs
+                    await _storeEtag.Set(hash, set, _options.EtagDuration > _options.OutputDuration ? _options.EtagDuration : _options.OutputDuration);
 
                     // put this in the response early 
                     var response = context.HttpContext.Response; 
@@ -324,16 +326,18 @@ namespace Handlebars.WebApi
                     response.Headers["Cache-Control"] = "public, max-age=" + _options.EtagDuration;                    
                 }
 
+                // if this filter is running we can assume either CacheEtag or CacheOutput 
+                // is true, so no need for an additional check
+                var cacheKey = await _keyProvider.GetKey(context.HttpContext, _options, hash) ;
+
                 if (_options.CacheOutput)
                 {
-                    var cachedValue = await _storeOutput.Get(cacheKey);
-                    if (cachedValue != null)
+                    OutputCacheItem item = await _storeOutput.Get(cacheKey);
+                    if (item != null)
                     {
                         // Deserialize the output cache item 
-                        OutputCacheItem item;
-                        using (var ms = new MemoryStream(cachedValue))
-                            item = _serializer.Deserialize<OutputCacheItem>(ms, _ds);
-
+                        ;
+                        
                         // Needed for every repsonse
                         context.HttpContext.Response.StatusCode = item.StatusCode;
                         context.HttpContext.Response.ContentType = item.ContentType;
@@ -451,18 +455,18 @@ namespace Handlebars.WebApi
                                 // We know this wasn't from a cache hit, so add this to the cache
                                 if (!http.Items.ContainsKey("cache-hit") &&
                                     http.Items.ContainsKey("cache-key"))
-                                {
-                                    using (var ms = new MemoryStream())
-                                    {
-                                        _serializer.Serialize(new OutputCacheItem
+                                { 
+                                    await _storeOutput.Set(
+                                        Convert.ToString(http.Items["cache-key"]),
+                                        http.Items["cache-set"] as string[],
+                                        _options.OutputDuration, 
+                                        new OutputCacheItem
                                         {
                                             ContentType = contentType,
                                             StatusCode = statusCode,
                                             Content = value
-                                        }, ms, _ss);
-
-                                        await _storeOutput.Set(Convert.ToString(http.Items["cache-key"]), ms.ToArray());
-                                    }
+                                        }
+                                    );                                    
                                 }
                             }
 
@@ -502,11 +506,12 @@ namespace Handlebars.WebApi
                             if (context.HttpContext.Items.ContainsKey("cache-donut"))
                                 item.Donuts = context.HttpContext.Items["cache-donut"] as List<SectionData>;
 
-                            using (var ms = new MemoryStream())
-                            {
-                                _serializer.Serialize(item, ms, _ss);
-                                await _storeOutput.Set(cacheKey, ms.ToArray());
-                            }                                
+                            await _storeOutput.Set(
+                                cacheKey, 
+                                set.Key,
+                                _options.OutputDuration,
+                                item
+                            ); 
                         }
                     }
                     else if (_options.CacheRedirects && 
@@ -519,11 +524,12 @@ namespace Handlebars.WebApi
                         item.ContentType = response.ContentType;
                         item.Content = response.Headers["location"];
 
-                        using (var ms = new MemoryStream())
-                        {
-                            _serializer.Serialize(item, ms, _ss);
-                            await _storeOutput.Set(cacheKey, ms.ToArray());
-                        }
+                        await _storeOutput.Set(
+                            cacheKey, 
+                            set.Key,
+                            _options.OutputDuration,
+                            item
+                        ); 
 
                         // Prepare HTML for browsers which ignore headers
                         var html = string.Concat(

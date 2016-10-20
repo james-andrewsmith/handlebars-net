@@ -13,9 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Internal;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Controllers;
-
-using Wire;
-
+ 
 namespace Handlebars.WebApi
 {
     public class HandlebarsActionExecutor
@@ -45,17 +43,7 @@ namespace Handlebars.WebApi
 
             // get the tree from the attribute routes 
             this._router = router.Get();
-            this._actionSelectionDecisionTree = new HandlebarsActionSelectionDecisionTree(_actionDescriptorCollectionProvider.ActionDescriptors);
-
-            // Setup Wire for fastest performance
-            var types = new[] {
-                    typeof(OutputCacheItem),
-                    typeof(SectionData)
-                };
-
-            this._serializer = new Serializer(new SerializerOptions(knownTypes: types));
-            this._ss = _serializer.GetSerializerSession();
-            this._ds = _serializer.GetDeserializerSession();
+            this._actionSelectionDecisionTree = new HandlebarsActionSelectionDecisionTree(_actionDescriptorCollectionProvider.ActionDescriptors);             
         }
         #endregion
 
@@ -70,11 +58,7 @@ namespace Handlebars.WebApi
         private readonly IControllerArgumentBinder _controllerArgumentBinder;
         private readonly ICacheKeyProvider _keyProvider;
         private readonly IStoreOutputCache _storeOutput;
-        #endregion
-        private readonly Serializer _serializer;
-        private readonly SerializerSession _ss;
-        private readonly DeserializerSession _ds;
-
+        #endregion        
 
         public async Task<IActionResult> ExecuteAsync(HttpContext context, string url)
         {
@@ -109,16 +93,14 @@ namespace Handlebars.WebApi
                     
                     // todo:
                     // check the options have been populated by the filter instance
-                    key = await _keyProvider.GetKey(context, filter.Options);                    
+                    var set = await _keyProvider.GetKeyValue(context, filter.Options);
+                    var hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
+                    key = await _keyProvider.GetKey(context, filter.Options, hash);
 
                     // Return the cached response if it exists
-                    var cachedValue = await _storeOutput.Get(key);
-                    if (cachedValue != null)
-                    {
-                        OutputCacheItem item;
-                        using (var ms = new MemoryStream(cachedValue))
-                            item = _serializer.Deserialize<OutputCacheItem>(ms, _ds);
-
+                    OutputCacheItem item = await _storeOutput.Get(key);
+                    if (item != null)
+                    { 
                         // Ensure that other parts of the application avoid recaching
                         // this donut result as it was a hit
                         context.Items["cache-hit"] = true;
@@ -134,6 +116,9 @@ namespace Handlebars.WebApi
                     // If we didn't find the key we will want to cache it once the response 
                     // is finished so add this to the items so the donut processor can do that
                     context.Items["cache-key"] = key;
+                    context.Items["cache-set"] = set;
+                    context.Items["cache-hash"] = hash;
+                    context.Items["cache-duration"] = filter.Options.OutputDuration;
                 }
 
                 // Proceed with executing the action and then working with the result

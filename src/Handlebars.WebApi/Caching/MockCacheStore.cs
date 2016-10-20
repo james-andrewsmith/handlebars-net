@@ -10,22 +10,22 @@ namespace Handlebars.WebApi
 {
     public class MockOutputCacheStore : IStoreOutputCache
     {
-        public Task<byte[]> Get(string key)
+        public Task<OutputCacheItem> Get(string key)
         {
-            return Task.FromResult<byte[]>(null);            
+            return Task.FromResult<OutputCacheItem>(null);            
         }
 
-        public Task Set(string key, byte[] item)
+        public Task Set(string key, string[] dependencies, int duration, OutputCacheItem item)
         {
             return Task.CompletedTask;
         } 
     }
 
     public class MockEtagCacheStore : IStoreEtagCache
-    {        
-        public Task<string> Get(string key)
+    {
+        public Task<KeyValuePair<string[], string[]>> Get(string key)
         {
-            return Task.FromResult<string>(null);            
+            return Task.FromResult(new KeyValuePair<string[], string[]>(null, null));
         }
 
         public Task Remove(string key)
@@ -33,7 +33,7 @@ namespace Handlebars.WebApi
             return Task.CompletedTask;
         }
 
-        public Task Set(string key, string etag)
+        public Task Set(string key, KeyValuePair<string[], string[]> set, int duration)
         {
             return Task.CompletedTask;
         }
