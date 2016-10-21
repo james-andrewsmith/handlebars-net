@@ -84,33 +84,46 @@ namespace Handlebars.WebApi
                 var caching = actionDescriptor.FilterDescriptors
                                               .Where(_ => _.Filter is CacheControl)
                                               .FirstOrDefault();
-                string key;
+                string key, hash = null;
+                KeyValuePair<string[], string[]> set = new KeyValuePair<string[], string[]>();
                 if (caching != null)
                 {
                     var filter = caching.Filter as CacheControl;
 
-                    // Get the key
-                    
-                    // todo:
-                    // check the options have been populated by the filter instance
-                    var set = await _keyProvider.GetKeyValue(context, filter.Options);
-                    var hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
-                    key = await _keyProvider.GetKey(context, filter.Options, hash);
-
                     // Return the cached response if it exists
+                    if (context.Items.ContainsKey("cache-key"))
+                    {
+                        key = Convert.ToString(context.Items["cache-key"]);
+                    }
+                    else
+                    {
+                        // Get the key                    
+                        set = await _keyProvider.GetKeyValue(context, filter.Options);
+                        hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
+                        key = await _keyProvider.GetKey(context, filter.Options, hash);
+                    }
+
                     OutputCacheItem item = await _storeOutput.Get(key);
                     if (item != null)
-                    { 
+                    {
                         // Ensure that other parts of the application avoid recaching
                         // this donut result as it was a hit
                         context.Items["cache-hit"] = true;
-
                         return new ContentResult
                         {
                             Content = item.Content,
                             ContentType = item.ContentType,
                             StatusCode = item.StatusCode
                         };
+                    }                                        
+
+                    // Second chance dip, we had a key, it was invalid, we are recalulating 
+                    if (hash == null)
+                    {
+                        // Get the key                    
+                        set = await _keyProvider.GetKeyValue(context, filter.Options);
+                        hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
+                        key = await _keyProvider.GetKey(context, filter.Options, hash);
                     }
 
                     // If we didn't find the key we will want to cache it once the response 
@@ -119,6 +132,10 @@ namespace Handlebars.WebApi
                     context.Items["cache-set"] = set;
                     context.Items["cache-hash"] = hash;
                     context.Items["cache-duration"] = filter.Options.OutputDuration;
+                }
+                else
+                {
+                    context.Items.Remove("cache-key");
                 }
 
                 // Proceed with executing the action and then working with the result

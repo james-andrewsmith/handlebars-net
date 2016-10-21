@@ -8,7 +8,7 @@ namespace Handlebars.WebApi
         {
             get;
             set;
-        }
+        }         
 
         public int NameLength
         {

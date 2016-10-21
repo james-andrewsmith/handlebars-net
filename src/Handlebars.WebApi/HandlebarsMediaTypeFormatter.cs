@@ -31,11 +31,11 @@ namespace Handlebars.WebApi
                                             Lazy<ILogger<HandlebarsMediaTypeFormatter>> logger)
             : base()
         {            
-            this._template = template;
-            this._formatter = formatter;
-            this._executor = executor;
-            this._storeOutput = storeOutput;
-            this._logger = logger;             
+            _template = template;
+            _formatter = formatter;
+            _executor = executor;
+            _storeOutput = storeOutput;
+            _logger = logger;             
         }
 
         #endregion
@@ -174,6 +174,7 @@ namespace Handlebars.WebApi
         public async Task WriteAsync(OutputFormatterWriteContext context)
         {
             // Get the view template 
+            _logger.Value.LogInformation("Starting WriteAsync");
             var view = GetView(context.HttpContext);             
             var json = _formatter.GetContext(context.HttpContext.Request, context.Object);
 
@@ -198,6 +199,7 @@ namespace Handlebars.WebApi
             }
 
             // Return the HTML
+            _logger.Value.LogInformation("Rendering handlebars");
             string render = _template.Render(view, json);            
             StringBuilder html = new StringBuilder(render);
 
@@ -247,12 +249,13 @@ namespace Handlebars.WebApi
                 await writer.WriteAsync(output);
                 await writer.FlushAsync();
             }
+            _logger.Value.LogInformation("Finished WriteAsync");
         }
 
         public async Task<StringBuilder> FillDonutData(StringBuilder html, HttpContext context)
         {
             HttpRequest original = context.Request;
-            var donuts = new List<SectionData>();
+            var donuts = new List<SectionData>(3);
             
             // detect the donuts
             SectionData section = new SectionData();
@@ -277,12 +280,6 @@ namespace Handlebars.WebApi
             // execute any donuts
             if (donuts.Count > 0)
             {
-                // Cache the donut meta data with the template, 
-                // this allows the output cache to execute donuts
-                // directly and not perform any text scans
-                if (context.Items.ContainsKey("cache"))
-                    context.Items["cache-donut"] = donuts;
-
                 // To avoid enumator collision issues with the mutliple donuts
                 // cache the keys in a new object up here and use index access
                 var keys = original.Headers.Keys.ToArray();
@@ -310,7 +307,7 @@ namespace Handlebars.WebApi
                         http.Items.Add("experiment", original.HttpContext.Items["experiment"]);
                     if (original.HttpContext.Items.ContainsKey("x-account"))
                         http.Items.Add("x-account", original.HttpContext.Items["x-account"]);
-
+                    
                     http.Request.Path = url;
                     http.User = original.HttpContext.User;
 
@@ -326,8 +323,7 @@ namespace Handlebars.WebApi
                 }
                 catch (Exception exp)
                 {
-                    Console.WriteLine(exp.Message);
-                    Console.WriteLine(exp.StackTrace);
+                    _logger.Value.LogError(exp.Message);
                 }
 
                 // Actually fill the donut hole 
@@ -370,7 +366,7 @@ namespace Handlebars.WebApi
                         // We know this wasn't from a cache hit, so add this to the cache
                         if (!http.Items.ContainsKey("cache-hit") &&
                             http.Items.ContainsKey("cache-key"))
-                        {
+                        { 
                             await _storeOutput.Value.Set(
                                 Convert.ToString(http.Items["cache-key"]),
                                 http.Items["cache-set"] as string[],
@@ -382,7 +378,7 @@ namespace Handlebars.WebApi
                                     Content = value
                                 }
                             );                         
-                        }
+                        } 
                     }
 
                     // Fill the donut hole using stringbuilder
@@ -390,9 +386,14 @@ namespace Handlebars.WebApi
                     html.Insert(kvp.Start, value);
                     _logger.Value.LogInformation("Finished donut {url}", url);
                 }
-                                
-            }            
-            
+
+                // Cache the donut meta data with the template, 
+                // this allows the output cache to execute donuts
+                // directly and not perform any text scans
+                if (context.Items.ContainsKey("cache"))
+                    context.Items["cache-donut"] = donuts;
+            }
+
             return html;
         } 
           
