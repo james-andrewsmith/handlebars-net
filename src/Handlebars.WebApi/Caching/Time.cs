@@ -14,7 +14,7 @@ namespace Handlebars.WebApi
         public const int Hour = 3600;
         public const int Hours = 3600;
 
-        public const int Day = 60;
-        public const int Days = 60;
+        public const int Day = 86400;
+        public const int Days = 86400;
     }
 }

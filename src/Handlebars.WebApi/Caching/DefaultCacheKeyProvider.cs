@@ -41,6 +41,9 @@ namespace Handlebars.WebApi
         /// <returns></returns>
         public async Task<KeyValuePair<string[], string[]>> GetKeyValue(HttpContext context, CacheControlOptions options)
         {
+            if (options.BuildHashWith == null)
+                return new KeyValuePair<string[], string[]>();
+
             var keys = new string[options.BuildHashWith.Length];
             var values = new string[options.BuildHashWith.Length];
             for (var i = 0; i < options.BuildHashWith.Length; i ++)
@@ -69,9 +72,12 @@ namespace Handlebars.WebApi
             var sb = new StringBuilder();
 
             // Todo: find a way to avoid this sort and use an array instead
-            foreach (var k in set.OrderBy(_ => _, StringComparer.OrdinalIgnoreCase))
+            if (set != null && set.Length > 0)
             {
-                sb.Append(string.IsNullOrEmpty(k) ? "<null>" : k.Trim('\n', ' ') + ";");
+                foreach (var k in set.OrderBy(_ => _, StringComparer.OrdinalIgnoreCase))
+                {
+                    sb.Append(string.IsNullOrEmpty(k) ? "<null>" : k.Trim('\n', ' ') + ";");
+                }
             }
 
             if (options.VaryByUser)

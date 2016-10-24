@@ -34,7 +34,6 @@ namespace Handlebars.WebApi
                 serviceProvider.GetService<ICacheKeyProvider>(),
                 serviceProvider.GetService<IStoreEtagCache>(),
                 serviceProvider.GetService<IStoreOutputCache>(),
-                new Lazy<ILogger<OutputCacheFilter>>(() => serviceProvider.GetService<ILogger<OutputCacheFilter>>()),
                 _options
             );
         }
@@ -246,7 +245,6 @@ namespace Handlebars.WebApi
                                      ICacheKeyProvider keyProvider,
                                      IStoreEtagCache storeEtag,
                                      IStoreOutputCache storeOutput,
-                                     Lazy<ILogger<OutputCacheFilter>> logger,
                                      CacheControlOptions options) : base()
             {
                 // Service injection
@@ -258,8 +256,7 @@ namespace Handlebars.WebApi
                 _storeOutput = storeOutput;                
                  
                 // Setup filter configuration 
-                _options = options;
-                _logger = logger;                          
+                _options = options;       
             }
             #endregion 
 
@@ -271,14 +268,12 @@ namespace Handlebars.WebApi
             private readonly IStoreOutputCache _storeOutput;
             private readonly IStoreEtagCache _storeEtag;
             private readonly ICacheKeyProvider _keyProvider;
-            private readonly Lazy<ILogger<OutputCacheFilter>> _logger;
             #endregion
              
             public async Task OnResourceExecutionAsync(ResourceExecutingContext context,
                                                        ResourceExecutionDelegate next)
             {
-                KeyValuePair<string[], string[]> set;
-                Stopwatch sw = Stopwatch.StartNew();
+                KeyValuePair<string[], string[]> set; 
 
                 // Has the client sent an etag to the server, if so, we will calculate
                 // if there has been any change to it here 
@@ -290,19 +285,22 @@ namespace Handlebars.WebApi
                     var etagSetUsed = true;
 
                     // convert the weak reference into just the hash 
-                    _logger.Value.LogInformation("Get existing etag {etagHash} set in {ElapsedMilliseconds}", etagHash, sw.ElapsedMilliseconds);
                     set = await _storeEtag.Get(await _keyProvider.GetKey(context.HttpContext, _options, etagHash.Substring(3, etagHash.Length - 4)));
 
                     // if the cache has been cleared call back to recreating the set 
                     // from the configuration and getting the keys fresh
-                    if (set.Value.Length != _options.BuildHashWith.Length)
+
+                    // if the cache has been cleared call back to recreating the set 
+                    // from the configuration and getting the keys fresh
+                    if (_options.BuildHashWith != null &&
+                        _options.BuildHashWith.Length > 0 &&
+                        set.Value.Length != _options.BuildHashWith.Length)
                     {
                         set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
                         etagSetUsed = false;
                     }
 
                     // calculate the actual hash from the values 
-                    _logger.Value.LogInformation("Get hash of set for etag {etagHash} in {ElapsedMilliseconds}", etagHash, sw.ElapsedMilliseconds);
                     hash = await _keyProvider.GetHashOfValue(context.HttpContext, _options, set.Value);
                     if (_options.CacheEtag && $"W/\"{hash}\"" == etagHash)
                     {
@@ -311,7 +309,6 @@ namespace Handlebars.WebApi
                         // in those cases we want to ensure the hash gets saved again (but only if it works) 
                         if (!etagSetUsed)
                         {
-                            _logger.Value.LogInformation("Saving set to redis in {ElapsedMilliseconds}", sw.ElapsedMilliseconds);
                             await _storeEtag.Set(
                                 await _keyProvider.GetKey(context.HttpContext, _options, hash), 
                                 set, 
@@ -320,7 +317,6 @@ namespace Handlebars.WebApi
                         }
 
                         // if the ETag matches don't do any work, just send the not modified                           
-                        _logger.Value.LogInformation("Returning 304 Response in {ElapsedMilliseconds}", sw.ElapsedMilliseconds);
                         context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NotModified;
                         context.HttpContext.Response.ContentType = "text/html";
                         context.HttpContext.Response.Headers["ETag"] = etagHash;
@@ -333,9 +329,7 @@ namespace Handlebars.WebApi
                     // if no etag was provided then calculate it for this request, as at some point
                     // in the request chain this will be needed for naming the output cache item
                     // and controlling it's dependency chain via cancel tokens
-                    _logger.Value.LogInformation("Calculating Set");
                     set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
-                    _logger.Value.LogInformation("Calculating Hash");
                     hash = await _keyProvider.GetHashOfValue(context.HttpContext, _options, set.Value);
                 }
 
@@ -347,7 +341,6 @@ namespace Handlebars.WebApi
                 if (_options.CacheEtag && !context.HttpContext.Items.ContainsKey("donut"))
                 {
                     // this will save time on future runs
-                    _logger.Value.LogInformation("Saving set to redis for {cacheKey} in {ElapsedMilliseconds}", cacheKey, sw.ElapsedMilliseconds);
                     await _storeEtag.Set(cacheKey, set, _options.EtagDuration > _options.OutputDuration ? _options.EtagDuration : _options.OutputDuration);
 
                     // put this in the response early 
@@ -361,9 +354,6 @@ namespace Handlebars.WebApi
                     OutputCacheItem item = await _storeOutput.Get(cacheKey);
                     if (item != null)
                     {
-                        // Deserialize the output cache item 
-                        _logger.Value.LogInformation("Get OutputCache Item from store for {cacheKey} in {ElapsedMilliseconds}", cacheKey, sw.ElapsedMilliseconds);
-
                         // Needed for every repsonse
                         context.HttpContext.Response.StatusCode = item.StatusCode;
                         context.HttpContext.Response.ContentType = item.ContentType;
@@ -409,7 +399,6 @@ namespace Handlebars.WebApi
                         var contexts = new DefaultHttpContext[donuts.Count];
 
                         // move backwards through the donuts 
-                        _logger.Value.LogInformation("Starting Donuts for {cacheKey} in {ElapsedMilliseconds}", cacheKey, sw.ElapsedMilliseconds);
                         for (int i = 0; i < donuts.Count; i++)
                         {
                             // Perf: avoid allocations 
@@ -419,32 +408,26 @@ namespace Handlebars.WebApi
                             // copy revevant details to new context
                             var features = new FeatureCollection(context.HttpContext.Features);
                             features.Set<IItemsFeature>(new ItemsFeature());
-                            var http = new DefaultHttpContext(features);
-
-                            for (var k = 0; k < keys.Length; k++)
-                                http.Request.Headers[keys[k]] = original.Headers[keys[k]];
-
-                            http.Items["donut"] = true;
+                            contexts[i] = new DonutHttpContext(features, original.Headers);                            
+                            
+                            contexts[i].Items["donut"] = true;
 
                             // Ensure A/B testing stays consistent between calls
                             if (context.HttpContext.Items.ContainsKey("experiment"))
-                                http.Items.Add("experiment", context.HttpContext.Items["experiment"]);
+                                contexts[i].Items.Add("experiment", context.HttpContext.Items["experiment"]);
                             if (original.HttpContext.Items.ContainsKey("x-account"))
-                                http.Items.Add("x-account", original.HttpContext.Items["x-account"]);
-                            
-                            http.Request.Path = url;
-                            http.User = context.HttpContext.User;
+                                contexts[i].Items.Add("x-account", original.HttpContext.Items["x-account"]);
 
-                            contexts[i] = http;
-                            tasks[i] = _executor.ExecuteAsync(http, url);
+                            contexts[i].Request.Path = url;
+                            contexts[i].User = context.HttpContext.User;
+                             
+                            tasks[i] = _executor.ExecuteAsync(contexts[i]);
                         }
 
                         // Wait for all the donuts to complete
-                        _logger.Value.LogInformation("Executing Donuts for {cacheKey} in {ElapsedMilliseconds}", cacheKey, sw.ElapsedMilliseconds);
                         await Task.WhenAll(tasks);
 
                         // Actually fill the donut hole 
-                        bool donutCacheKeyChanged = false;
                         for (int i = (donuts.Count - 1); i >= 0; i--)
                         {
                             var kvp = donuts[i];
@@ -504,8 +487,6 @@ namespace Handlebars.WebApi
                             response.Insert(kvp.Start, value);
                         }
 
-                        _logger.Value.LogInformation("Finished Donuts for {cacheKey} in {ElapsedMilliseconds}", cacheKey, sw.ElapsedMilliseconds);
-
                         // Stream the contents of the stringbuilder to client
                         await context.HttpContext.Response.WriteAsync(response.ToString());
                         return;
@@ -542,9 +523,7 @@ namespace Handlebars.WebApi
                                 set.Key,
                                 _options.OutputDuration,
                                 item
-                            );
-
-                            _logger.Value.LogInformation("Saved Output of {cacheKey} in {ElapsedMilliseconds}", cacheKey, sw.ElapsedMilliseconds);
+                            );                            
                         }
                     }
                     else if (_options.CacheRedirects && 

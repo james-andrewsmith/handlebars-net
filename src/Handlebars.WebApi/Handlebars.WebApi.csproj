@@ -437,6 +437,8 @@
   <ItemGroup>
     <Compile Include="Caching\CacheControlOptions.cs" />
     <Compile Include="Caching\CacheControlProfile.cs" />
+    <Compile Include="Caching\DonutHttpContext.cs" />
+    <Compile Include="Caching\DonutHttpRequest.cs" />
     <Compile Include="Caching\MockCacheStore.cs" />
     <Compile Include="Caching\Time.cs" />
     <Compile Include="Caching\DefaultCacheStore.cs" />

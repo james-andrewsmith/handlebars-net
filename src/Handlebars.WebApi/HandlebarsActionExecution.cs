@@ -32,18 +32,18 @@ namespace Handlebars.WebApi
                                         IStoreOutputCache storeOutput)
         {
             // Basic services
-            this._actionSelector = actionSelector;
-            this._attributeRouteHandler = attributeRouteHandler;
-            this._actionDescriptorCollectionProvider = actionDescriptorCollectionProvider;
-            this._controllerActionInvokerCache = controllerActionInvokerCache;
-            this._controllerFactory = controllerFactory;
-            this._controllerArgumentBinder = controllerArgumentBinder;
-            this._keyProvider = keyProvider;
-            this._storeOutput = storeOutput;
+            _actionSelector = actionSelector;
+            _attributeRouteHandler = attributeRouteHandler;
+            _actionDescriptorCollectionProvider = actionDescriptorCollectionProvider;
+            _controllerActionInvokerCache = controllerActionInvokerCache;
+            _controllerFactory = controllerFactory;
+            _controllerArgumentBinder = controllerArgumentBinder;
+            _keyProvider = keyProvider;
+            _storeOutput = storeOutput;
 
             // get the tree from the attribute routes 
-            this._router = router.Get();
-            this._actionSelectionDecisionTree = new HandlebarsActionSelectionDecisionTree(_actionDescriptorCollectionProvider.ActionDescriptors);             
+            _router = router.Get();
+            _actionSelectionDecisionTree = new HandlebarsActionSelectionDecisionTree(_actionDescriptorCollectionProvider.ActionDescriptors);             
         }
         #endregion
 
@@ -60,7 +60,7 @@ namespace Handlebars.WebApi
         private readonly IStoreOutputCache _storeOutput;
         #endregion        
 
-        public async Task<IActionResult> ExecuteAsync(HttpContext context, string url)
+        public async Task<IActionResult> ExecuteAsync(HttpContext context)
         {
             try
             {              
@@ -84,24 +84,15 @@ namespace Handlebars.WebApi
                 var caching = actionDescriptor.FilterDescriptors
                                               .Where(_ => _.Filter is CacheControl)
                                               .FirstOrDefault();
-                string key, hash = null;
-                KeyValuePair<string[], string[]> set = new KeyValuePair<string[], string[]>();
+                
                 if (caching != null)
                 {
                     var filter = caching.Filter as CacheControl;
-
-                    // Return the cached response if it exists
-                    if (context.Items.ContainsKey("cache-key"))
-                    {
-                        key = Convert.ToString(context.Items["cache-key"]);
-                    }
-                    else
-                    {
-                        // Get the key                    
-                        set = await _keyProvider.GetKeyValue(context, filter.Options);
-                        hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
-                        key = await _keyProvider.GetKey(context, filter.Options, hash);
-                    }
+                    
+                    // Get the key                    
+                    var set = await _keyProvider.GetKeyValue(context, filter.Options);
+                    var hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
+                    var key = await _keyProvider.GetKey(context, filter.Options, hash);
 
                     OutputCacheItem item = await _storeOutput.Get(key);
                     if (item != null)
@@ -116,16 +107,7 @@ namespace Handlebars.WebApi
                             StatusCode = item.StatusCode
                         };
                     }                                        
-
-                    // Second chance dip, we had a key, it was invalid, we are recalulating 
-                    if (hash == null)
-                    {
-                        // Get the key                    
-                        set = await _keyProvider.GetKeyValue(context, filter.Options);
-                        hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
-                        key = await _keyProvider.GetKey(context, filter.Options, hash);
-                    }
-
+                     
                     // If we didn't find the key we will want to cache it once the response 
                     // is finished so add this to the items so the donut processor can do that
                     context.Items["cache-key"] = key;
