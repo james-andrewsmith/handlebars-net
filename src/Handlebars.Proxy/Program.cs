@@ -84,6 +84,9 @@ namespace Handlebars.Proxy
                 return;
             }
 
+            ConfigurationHelper.GetFromFile();
+
+            
             var builder = new ContainerBuilder(); 
              
             builder.RegisterType<ClearScriptEngine>()

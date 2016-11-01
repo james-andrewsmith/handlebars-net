@@ -383,6 +383,11 @@ namespace Handlebars.WebApi
                         var donuts = item.Donuts;
                         if (donuts == null || donuts.Count == 0)
                         {
+                            // Check if this is an x-format request, if so return the header
+                            if (!string.IsNullOrEmpty(item.Template) &&
+                                context.HttpContext.Request.Query.ContainsKey("x-format"))
+                                context.HttpContext.Response.Headers["x-template"] = item.Template;
+
                             // Write out the string directly (no cost from a stringbuilder)
                             await context.HttpContext.Response.WriteAsync(item.Content);
                             return;
@@ -517,6 +522,9 @@ namespace Handlebars.WebApi
 
                             if (context.HttpContext.Items.ContainsKey("cache-donut"))
                                 item.Donuts = context.HttpContext.Items["cache-donut"] as List<SectionData>;
+
+                            if (response.Headers.ContainsKey("x-template"))
+                                item.Template = response.Headers["x-template"];
 
                             await _storeOutput.Set(
                                 cacheKey, 

@@ -31,5 +31,11 @@ namespace Handlebars.WebApi
             get;
             set;
         }
+
+        public string Template
+        {
+            get;
+            set;
+        }
     }
 }

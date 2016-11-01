@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Handlebars
 {
-    internal class HandlebarsConfigurationHandler : ConfigurationSection
+    public class HandlebarsConfigurationHandler : ConfigurationSection
     {
         public static HandlebarsConfigurationHandler Get()
         {

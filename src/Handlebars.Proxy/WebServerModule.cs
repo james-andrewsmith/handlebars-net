@@ -226,6 +226,8 @@ namespace Handlebars.Proxy
                     var location = response.Headers.Location;
                     if (location != null)
                     {
+                        Console.WriteLine("Redirection header detected");
+                        Console.WriteLine(location.ToString());
                         var locationUri = new Uri(location.ToString());
                         // locationUri.Host = HandlebarsProxyConfiguration.Instance.Hostname;
                         // locationUri.Port = HandlebarsProxyConfiguration.Instance.Port;
@@ -233,14 +235,25 @@ namespace Handlebars.Proxy
                     }
 
                     // if this is an API request, then pass it staight to the client, no template logic
-                    if (context.Request.Uri.PathAndQuery.StartsWith("/api") ||
-                        !response.Content.Headers.ContentType.MediaType.Contains("application/json") ||
+                    
+                    if ((context.Request.Uri != null &&
+                         context.Request.Uri.PathAndQuery != null &&
+                         context.Request.Uri.PathAndQuery.StartsWith("/api")) ||
+                        (response != null &&
+                         response.Content != null && 
+                         response.Content.Headers != null && 
+                         response.Content.Headers.ContentType != null && 
+                         response.Content.Headers.ContentType.MediaType != null && 
+                         response.Content.Headers.ContentType.MediaType.Contains("application/json") == false) ||
                         response.StatusCode == HttpStatusCode.Found ||
                         response.StatusCode == HttpStatusCode.Redirect ||
                         response.StatusCode == HttpStatusCode.TemporaryRedirect)
                     {
+                        Console.WriteLine("This is a non-handlebars response writing out original");
                         context.Response.StatusCode = (int)response.StatusCode;
+                        Console.WriteLine("Status code " + context.Response.StatusCode);
                         context.Response.ContentType = response.Content.Headers.ContentType.MediaType;
+                        Console.WriteLine("Content Type " + context.Response.ContentType);
                         await context.Response.WriteAsync(data);
                         return;
                     }
