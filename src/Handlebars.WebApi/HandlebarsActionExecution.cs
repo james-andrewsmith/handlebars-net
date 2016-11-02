@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
-using System.Text;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Http;
@@ -62,20 +61,37 @@ namespace Handlebars.WebApi
 
         public async Task<IActionResult> ExecuteAsync(HttpContext context)
         {
+
+#if TIMING
+            var url = context.Request.Path.Value;
+            var sw = Stopwatch.StartNew();
+            Console.WriteLine("{1} | Starting ExecuteAsync in {0}", sw.ElapsedMilliseconds, url);
+#endif
+
             try
             {              
                 var rc = new RouteContext(context);            
                 rc.RouteData.Routers.Add(_router);
 
                 await _router.RouteAsync(rc);
-                
+#if TIMING 
+                Console.WriteLine("{1} | _router.RouteAsync in {0}", sw.ElapsedMilliseconds, url);
+#endif
+
                 context.Features[typeof(IRoutingFeature)] = new RoutingFeature()
                 {
                     RouteData = rc.RouteData
                 };
 
-                var candidates = _actionSelectionDecisionTree.Select(rc.RouteData.Values);                
+                var candidates = _actionSelectionDecisionTree.Select(rc.RouteData.Values);
+#if TIMING
+                Console.WriteLine("{1} | _actionSelectionDecisionTree.Select in {0}", sw.ElapsedMilliseconds, url);
+#endif
+
                 var actionDescriptor = _actionSelector.SelectBestCandidate(rc, candidates) as ControllerActionDescriptor;
+#if TIMING
+                Console.WriteLine("{1} | _actionSelector.SelectBestCandidate in {0}", sw.ElapsedMilliseconds, url);
+#endif
 
                 if (actionDescriptor == null)
                     return null;
@@ -91,15 +107,32 @@ namespace Handlebars.WebApi
                     
                     // Get the key                    
                     var set = await _keyProvider.GetKeyValue(context, filter.Options);
+#if TIMING
+                    Console.WriteLine("{1} | _keyProvider.GetKeyValue in {0}", sw.ElapsedMilliseconds, url);
+#endif
+
                     var hash = await _keyProvider.GetHashOfValue(context, filter.Options, set.Value);
+#if TIMING
+                    Console.WriteLine("{1} | _keyProvider.GetHashOfValue in {0}", sw.ElapsedMilliseconds, url);
+#endif
                     var key = await _keyProvider.GetKey(context, filter.Options, hash);
+#if TIMING
+                    Console.WriteLine("{1} | _keyProvider.GetKey in {0}", sw.ElapsedMilliseconds, url);
+#endif
 
                     OutputCacheItem item = await _storeOutput.Get(key);
+#if TIMING
+                    Console.WriteLine("{1} | _storeOutput.Get in {0}", sw.ElapsedMilliseconds, url);
+#endif
+
                     if (item != null)
                     {
                         // Ensure that other parts of the application avoid recaching
                         // this donut result as it was a hit
                         context.Items["cache-hit"] = true;
+#if TIMING
+                        Console.WriteLine("{1} | ExecuteAsync Finished in {0}", sw.ElapsedMilliseconds, url);
+#endif
                         return new ContentResult
                         {
                             Content = item.Content,
@@ -154,6 +187,10 @@ namespace Handlebars.WebApi
                     _arguments,
                     executor
                 );
+
+#if TIMING
+                Console.WriteLine("{1} | ControllerActionExecutor.PrepareArguments in {0}", sw.ElapsedMilliseconds, url);
+#endif
 
                 // adding back to the cache is done once the template is rendered
                 if (executor.IsTypeAssignableFromIActionResult)

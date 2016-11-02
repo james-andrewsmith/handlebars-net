@@ -273,6 +273,10 @@ namespace Handlebars.WebApi
             public async Task OnResourceExecutionAsync(ResourceExecutingContext context,
                                                        ResourceExecutionDelegate next)
             {
+#if TIMING
+                var sw = Stopwatch.StartNew();
+                Console.WriteLine("Starting OnResourceExecutionAsync in {0}", sw.ElapsedMilliseconds);
+#endif
                 KeyValuePair<string[], string[]> set; 
 
                 // Has the client sent an etag to the server, if so, we will calculate
@@ -280,12 +284,16 @@ namespace Handlebars.WebApi
                 string hash;
                 if (context.HttpContext.Request.Headers.ContainsKey("If-None-Match"))
                 {
+
                     // use the etag to check the store
                     var etagHash = Convert.ToString(context.HttpContext.Request.Headers["If-None-Match"]);
                     var etagSetUsed = true;
 
                     // convert the weak reference into just the hash 
                     set = await _storeEtag.Get(await _keyProvider.GetKey(context.HttpContext, _options, etagHash.Substring(3, etagHash.Length - 4)));
+#if TIMING
+                    Console.WriteLine("If-None-Match _storeEtag.Get in {0}", sw.ElapsedMilliseconds);
+#endif
 
                     // if the cache has been cleared call back to recreating the set 
                     // from the configuration and getting the keys fresh
@@ -298,6 +306,10 @@ namespace Handlebars.WebApi
                     {
                         set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
                         etagSetUsed = false;
+
+#if TIMING
+                        Console.WriteLine("If-None-Match _keyProvider.GetKeyValue in {0}", sw.ElapsedMilliseconds);
+#endif
                     }
 
                     // calculate the actual hash from the values 
@@ -314,6 +326,9 @@ namespace Handlebars.WebApi
                                 set, 
                                 _options.EtagDuration > _options.OutputDuration ? _options.EtagDuration : _options.OutputDuration
                             );
+#if TIMING
+                            Console.WriteLine("If-None-Match _storeEtag.Set in {0}", sw.ElapsedMilliseconds);
+#endif
                         }
 
                         // if the ETag matches don't do any work, just send the not modified                           
@@ -321,6 +336,9 @@ namespace Handlebars.WebApi
                         context.HttpContext.Response.ContentType = "text/html";
                         context.HttpContext.Response.Headers["ETag"] = etagHash;
                         context.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=" + _options.EtagDuration;
+#if TIMING
+                        Console.WriteLine("Returning 304 in {0}", sw.ElapsedMilliseconds);
+#endif
                         return;
                     }
                 }
@@ -331,6 +349,10 @@ namespace Handlebars.WebApi
                     // and controlling it's dependency chain via cancel tokens
                     set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
                     hash = await _keyProvider.GetHashOfValue(context.HttpContext, _options, set.Value);
+
+#if TIMING
+                    Console.WriteLine("_keyProvider.GetHashOfValue in {0}", sw.ElapsedMilliseconds);
+#endif
                 }
 
                 // if this filter is running we can assume either CacheEtag or CacheOutput 
@@ -343,6 +365,10 @@ namespace Handlebars.WebApi
                     // this will save time on future runs
                     await _storeEtag.Set(cacheKey, set, _options.EtagDuration > _options.OutputDuration ? _options.EtagDuration : _options.OutputDuration);
 
+#if TIMING
+                    Console.WriteLine(" _storeEtag.Set in {0}", sw.ElapsedMilliseconds);
+#endif
+
                     // put this in the response early 
                     var response = context.HttpContext.Response; 
                     response.Headers["ETag"] = $"W/\"{hash}\"";
@@ -352,6 +378,10 @@ namespace Handlebars.WebApi
                 if (_options.CacheOutput)
                 {
                     OutputCacheItem item = await _storeOutput.Get(cacheKey);
+#if TIMING
+                    Console.WriteLine(" _storeOutput.Get in {0}", sw.ElapsedMilliseconds);
+#endif
+
                     if (item != null)
                     {
                         // Needed for every repsonse
@@ -376,6 +406,9 @@ namespace Handlebars.WebApi
 
                             // Send to client then exit
                             await context.HttpContext.Response.WriteAsync(html);
+#if TIMING
+                            Console.WriteLine("Return cached 301 in {0}", sw.ElapsedMilliseconds);
+#endif
                             return;
                         }
 
@@ -390,6 +423,9 @@ namespace Handlebars.WebApi
 
                             // Write out the string directly (no cost from a stringbuilder)
                             await context.HttpContext.Response.WriteAsync(item.Content);
+#if TIMING
+                            Console.WriteLine("Returned 200 in {0}", sw.ElapsedMilliseconds);
+#endif
                             return;
                         }
 
@@ -403,6 +439,10 @@ namespace Handlebars.WebApi
                         var tasks = new Task<IActionResult>[donuts.Count];
                         var contexts = new DefaultHttpContext[donuts.Count];
 
+#if TIMING
+                        Console.WriteLine("Starting Donuts in {0}", sw.ElapsedMilliseconds);
+#endif
+
                         // move backwards through the donuts 
                         for (int i = 0; i < donuts.Count; i++)
                         {
@@ -413,8 +453,11 @@ namespace Handlebars.WebApi
                             // copy revevant details to new context
                             var features = new FeatureCollection(context.HttpContext.Features);
                             features.Set<IItemsFeature>(new ItemsFeature());
-                            contexts[i] = new DonutHttpContext(features, original.Headers);                            
-                            
+                            contexts[i] = new DonutHttpContext(features, original.Headers);
+#if TIMING
+                            Console.WriteLine("Prepared donut context for {1} in {0}", sw.ElapsedMilliseconds, url);
+#endif
+
                             contexts[i].Items["donut"] = true;
 
                             // Ensure A/B testing stays consistent between calls
@@ -427,10 +470,16 @@ namespace Handlebars.WebApi
                             contexts[i].User = context.HttpContext.User;
                              
                             tasks[i] = _executor.ExecuteAsync(contexts[i]);
+#if TIMING
+                            Console.WriteLine("Got task from  _executor.ExecuteAsync {1} in {0}", sw.ElapsedMilliseconds, url);
+#endif
                         }
 
                         // Wait for all the donuts to complete
                         await Task.WhenAll(tasks);
+#if TIMING
+                        Console.WriteLine("Executed Donuts in {0}", sw.ElapsedMilliseconds);
+#endif
 
                         // Actually fill the donut hole 
                         for (int i = (donuts.Count - 1); i >= 0; i--)
@@ -492,8 +541,15 @@ namespace Handlebars.WebApi
                             response.Insert(kvp.Start, value);
                         }
 
+#if TIMING
+                        Console.WriteLine("Filled Donuts in {0}", sw.ElapsedMilliseconds);
+#endif
+
                         // Stream the contents of the stringbuilder to client
                         await context.HttpContext.Response.WriteAsync(response.ToString());
+#if TIMING
+                        Console.WriteLine("Returned 200 in {0}", sw.ElapsedMilliseconds);
+#endif
                         return;
                     }
 
