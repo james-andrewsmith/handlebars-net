@@ -96,10 +96,27 @@ Handlebars.registerHelper("math", function (lvalue, operator, rvalue, options) {
 // fmt = optional format string
 Handlebars.registerHelper('format', function (value, fmt) {
 
-    if (_.isNumber(value)) {
+    if (_.isNumber(value) &&
+        fmt == 'friendly') {
+        return makeFriendly(value);
+    }
+    else if (_.isNumber(value)) {
         return accounting.formatNumber(value)
     }
 
     return value;
 });
 
+function intlFormat(num) {
+    return accounting.formatNumber(Math.round(num * 10) / 10, 1);
+}
+
+function makeFriendly(num) {
+    if (num >= 1000000) {
+        return intlFormat(num / 1000000) + 'M';
+    }
+    if (num >= 1000) {
+        return intlFormat(num / 1000) + 'k';
+    }
+    return accounting.formatNumber(num);
+}

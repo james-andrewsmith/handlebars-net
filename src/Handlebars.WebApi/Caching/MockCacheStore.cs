@@ -25,7 +25,7 @@ namespace Handlebars.WebApi
     {
         public Task<KeyValuePair<string[], string[]>> Get(string key)
         {
-            return Task.FromResult(new KeyValuePair<string[], string[]>(null, null));
+            return Task.FromResult(new KeyValuePair<string[], string[]>(new string[0], new string[0]));
         }
 
         public Task Remove(string key)

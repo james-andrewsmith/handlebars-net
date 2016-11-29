@@ -302,6 +302,7 @@ namespace Handlebars.WebApi
                     // from the configuration and getting the keys fresh
                     if (_options.BuildHashWith != null &&
                         _options.BuildHashWith.Length > 0 &&
+                        set.Value != null &&                        
                         set.Value.Length != _options.BuildHashWith.Length)
                     {
                         set = await _keyProvider.GetKeyValue(context.HttpContext, _options);
