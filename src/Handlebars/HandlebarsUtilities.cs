@@ -177,7 +177,7 @@ namespace Handlebars
         private class ModelMappingResolver : DefaultContractResolver
         {
             public ModelMappingResolver()
-                : base(true)
+                // : base(true)
             {
                 this.DefaultMembersSearchFlags = BindingFlags.Public | BindingFlags.Instance;
             }
@@ -186,7 +186,8 @@ namespace Handlebars
 
             protected override string ResolvePropertyName(string propertyName)
             {
-                return UnderscoreReplacement.Replace(propertyName, "$1$3_$2$4").ToLower();
+                return UnderscoreReplacement.Replace(propertyName, "$1$3_$2$4")
+                                            .ToLower();
                 // return System.Text.RegularExpressions.Regex.Replace(propertyName, @"([A-Z])([A-Z][a-z])|([a-z0-9])([A-Z])", "$1$3_$2$4").ToLower();
             }
         }
