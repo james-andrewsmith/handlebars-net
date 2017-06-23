@@ -7,6 +7,10 @@ Handlebars.registerHelper('epoch', function () {
     return moment().local().unix();
 });
 
+Handlebars.registerHelper('year', function () {
+    return moment().local().year();
+});
+
 Handlebars.registerHelper('moment', function (date, format) {
     try {
         var isEpoch = _.isNumber(date);

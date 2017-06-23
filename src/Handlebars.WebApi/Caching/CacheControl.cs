@@ -109,7 +109,7 @@ namespace Handlebars.WebApi
                     CacheOutput = true;
                     CacheRedirects = true;
                     VaryByQuery = new[] { "x-format" };
-                    VaryByUser = false;
+                    VaryByUser = true;
                     VaryByItem = new[] { "x-device" };
                     break;
                 case CacheControlProfile.ApiEndpoint:
@@ -336,7 +336,7 @@ namespace Handlebars.WebApi
                         context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NotModified;
                         context.HttpContext.Response.ContentType = "text/html";
                         context.HttpContext.Response.Headers["ETag"] = etagHash;
-                        context.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=" + _options.EtagDuration;
+                        context.HttpContext.Response.Headers["Cache-Control"] = "no-cache";
 #if TIMING
                         Console.WriteLine("Returning 304 in {0}", sw.ElapsedMilliseconds);
 #endif
@@ -373,7 +373,7 @@ namespace Handlebars.WebApi
                     // put this in the response early 
                     var response = context.HttpContext.Response; 
                     response.Headers["ETag"] = $"W/\"{hash}\"";
-                    response.Headers["Cache-Control"] = "public, max-age=" + _options.EtagDuration;                    
+                    response.Headers["Cache-Control"] = "no-cache";                    
                 }
 
                 if (_options.CacheOutput)
