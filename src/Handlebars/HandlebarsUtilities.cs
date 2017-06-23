@@ -176,11 +176,15 @@ namespace Handlebars
 
         private class ModelMappingResolver : DefaultContractResolver
         {
-            public ModelMappingResolver()
-                : base(true)
+            public ModelMappingResolver() : base()
             {
                 this.DefaultMembersSearchFlags = BindingFlags.Public | BindingFlags.Instance;
             }
+
+            // protected override List<MemberInfo> GetSerializableMembers(Type objectType)
+            // {
+            //     return base.GetSerializableMembers(objectType);
+            // }
 
             private static readonly System.Text.RegularExpressions.Regex UnderscoreReplacement = new System.Text.RegularExpressions.Regex(@"([A-Z])([A-Z][a-z])|([a-z0-9])([A-Z])", System.Text.RegularExpressions.RegexOptions.Compiled);
 
